@@ -1,0 +1,20 @@
+[package]
+name = "tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cosmwasm-std = "1.0.0-beta6"
+publica-credit-agency = { path = "../contracts/publica-credit-agency", version = "0.5.0", features = ["library"] }
+publica-market = { path = "../contracts/publica-market", version = "0.5.0", features = ["library"] }
+publica-osmosis-oracle = { path = "../contracts/publica-osmosis-oracle", version = "0.5.0", features = ["library"] }
+publica-token = { path = "../contracts/publica-token", version = "0.5.0", features = ["library"] }
+osmo-bindings = "0.5.1"
+utils = { version = "0.5.0", path = "../packages/utils" }
+anyhow = "1"
+cw-multi-test = "0.13.0"
+osmo-bindings-test = "0.5.1"
+derivative = "2.2.0"
