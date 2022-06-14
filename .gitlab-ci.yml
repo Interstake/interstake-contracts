@@ -38,6 +38,6 @@ wasm_build:
     for C in ./contracts/*/
     do
       echo "Compiling $(basename $C) ..."
-      (cd $C && cargo build --release --target --wasm32-unknown-unknown --locked)
+      (cd $C && cargo build --release --target wasm32-unknown-unknown --locked)
     done
   - cargo install --debug --features iterator --example check_contract --version 1.0.0-beta6 -- cosmwasm-vm
