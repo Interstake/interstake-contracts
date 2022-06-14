@@ -1,8 +1,8 @@
 image: rust:1.57.0
 
 stages:
-- test
 - build
+- test
 
 contract_publica_yield_generator:
   stage: test
