@@ -1,0 +1,43 @@
+image: rust:1.57.0
+
+stages:
+- build
+- test
+
+contract_publica_yield_generator:
+  stage: test
+  script:
+  - cd contracts/publica-yield-generator
+  - rustc --version; cargo --version; rustup --version
+  - RUST_BACKTRACE=1 cargo test --locked
+  - cargo schema --locked
+
+package_utils:
+  stage: test
+  script:
+  - cd packages/utils
+  - rustc --version; cargo --version; rustup --version; rustup target list --installed
+  - cargo build --locked
+  - cargo test --locked\
+
+lint:
+  stage: build
+  script:
+  - rustc --version; cargo --version; rustup --version; rustup target list --installed
+  - rustup component add rustfmt
+  - rustup component add clippy
+  - cargo clippy --tests -- -D warnings
+  - cargo fmt -- --check
+
+wasm_build:
+  stage: build
+  script:
+  - rustc --version; cargo --version; rustup --version; rustup target list --installed
+  - rustup target add wasm32-unknown-unknown
+  - |
+    for C in ./contracts/*/
+    do
+      echo "Compiling $(basename $C) ..."
+      (cd $C && cargo build --release --target wasm32-unknown-unknown --locked)
+    done
+  - cargo install --debug --features iterator --example check_contract --version 1.0.0-beta6 -- cosmwasm-vm
