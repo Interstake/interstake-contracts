@@ -20,8 +20,9 @@ pub enum ExecuteMsg {
         reward_rate: Uint128,
         reward_token: String,
     },
-    Distribute {},
-    Withdraw {},
+    Delegate {},
+    Undelegate {},
+    ClaimRewards {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

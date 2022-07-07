@@ -74,8 +74,9 @@ pub fn execute(
             reward_rate,
             reward_token,
         ),
-        ExecuteMsg::Distribute {} => execute_distribute(deps, env),
-        ExecuteMsg::Withdraw {} => execute_withdraw(deps, info, env),
+        ExecuteMsg::Delegate {} => execute_distribute(deps, env),
+        ExecuteMsg::Undelegate {} => execute_withdraw(deps, info, env),
+        ExecuteMsg::ClaimRewards {} => execute_withdraw(deps, info, env),
     }
 }
 
