@@ -1,11 +1,9 @@
-use std::cmp::min;
-
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Addr, CosmosMsg, StdError, Decimal, WasmMsg};
+use cosmwasm_std::{to_binary, Decimal};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG, LAST_PAYMENT_BLOCK};
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 use cw2::set_contract_version;
@@ -70,7 +68,8 @@ pub fn execute(
         ),
         ExecuteMsg::Delegate {} => execute_distribute(deps, env),
         ExecuteMsg::Undelegate {} => execute_withdraw(deps, info, env),
-        ExecuteMsg::ClaimRewards {} => execute_withdraw(deps, info, env),
+        ExecuteMsg::Restake {} => execute_withdraw(deps, info, env),
+        ExecuteMsg::UndelegateAll {} => execute_withdraw(deps, info, env),
     }
 }
 
@@ -202,16 +201,8 @@ pub fn execute_withdraw(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Info {} => to_binary(&query_info(deps, env)?),
+        QueryMsg::Config {} => to_binary(&""),
+        QueryMsg::Delegate {} => to_binary(&""),
+        QueryMsg::TotalDelegated {} => to_binary(&""),
     }
-}
-
-fn query_info(deps: Deps, env: Env) -> StdResult<InfoResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    let last_payment_block = LAST_PAYMENT_BLOCK.load(deps.storage)?;
-
-    Ok(InfoResponse {
-        config,
-        last_payment_block,
-    })
 }

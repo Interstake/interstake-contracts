@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
 
-use cosmwasm_std::Decimal;
-
-use crate::state::Config;
+use cosmwasm_std::{Coin, Decimal};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -26,19 +24,34 @@ pub enum ExecuteMsg {
         staking_addr: Option<String>,
         team_commision: Option<Decimal>,
     },
+    /// Adds amount of liquid to common staking pool
     Delegate {},
+    /// Undelegates currently staked portion of token
     Undelegate {},
-    ClaimRewards {},
+    /// Claims rewards and then stake them
+    Restake {},
+    /// Undelegates all tokens
+    UndelegateAll {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    Info {},
+    /// Returns current configuration
+    Config {},
+    /// Returns total amount of delegated tokens
+    TotalDelegated {},
+    /// Returns information about sender's delegation
+    Delegate {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InfoResponse {
-    pub config: Config,
-    pub last_payment_block: u64,
+pub struct DelegateResponse {
+    pub start_height: u64,
+    pub total_earnings: Coin,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TotalDelegatedResponse {
+    pub amount: Coin,
 }
