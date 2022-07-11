@@ -40,8 +40,7 @@ pub fn instantiate(
         .add_attribute("owner", owner.into_string())
         .add_attribute("denom", &msg.denom)
         .add_attribute("staking_addr", staking_addr.into_string())
-        .add_attribute("team_commision", team_commision.to_string())
-    )
+        .add_attribute("team_commision", team_commision.to_string()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -57,15 +56,7 @@ pub fn execute(
             denom,
             staking_addr,
             team_commision,
-        } => execute_update_config(
-            deps,
-            info,
-            env,
-            owner,
-            denom,
-            staking_addr,
-            team_commision,
-        ),
+        } => execute_update_config(deps, info, env, owner, denom, staking_addr, team_commision),
         ExecuteMsg::Delegate {} => execute_distribute(deps, env),
         ExecuteMsg::Undelegate {} => execute_withdraw(deps, info, env),
         ExecuteMsg::Restake {} => execute_withdraw(deps, info, env),
@@ -76,11 +67,11 @@ pub fn execute(
 pub fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
-    env: Env,
-    owner: Option<String>,
-    denom: Option<String>,
-    staking_addr: Option<String>,
-    team_commision: Option<Decimal>,
+    _env: Env,
+    _owner: Option<String>,
+    _denom: Option<String>,
+    _staking_addr: Option<String>,
+    _team_commision: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if config.owner != info.sender {
@@ -153,7 +144,7 @@ pub fn execute_update_config(
 //     Ok(Some(send_msg))
 // }
 
-pub fn execute_distribute(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+pub fn execute_distribute(_deps: DepsMut, _env: Env) -> Result<Response, ContractError> {
     Ok(Response::new())
     // let msg = get_distribution_msg(deps.as_ref(), &env)?;
     // LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
@@ -165,7 +156,7 @@ pub fn execute_distribute(deps: DepsMut, env: Env) -> Result<Response, ContractE
 pub fn execute_withdraw(
     deps: DepsMut,
     info: MessageInfo,
-    env: Env,
+    _env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if config.owner != info.sender {
@@ -199,7 +190,7 @@ pub fn execute_withdraw(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&""),
         QueryMsg::Delegate {} => to_binary(&""),

@@ -2,7 +2,9 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
-use publica_yield_generator::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, DelegateResponse, TotalDelegatedResponse};
+use publica_yield_generator::msg::{
+    DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TotalDelegatedResponse,
+};
 use publica_yield_generator::state::Config;
 
 fn main() {
