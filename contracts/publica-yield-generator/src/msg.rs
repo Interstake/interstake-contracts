@@ -25,9 +25,9 @@ pub enum ExecuteMsg {
         team_commision: Option<TeamCommision>,
     },
     /// Adds amount of liquid to common staking pool
-    Delegate {},
+    Delegate { sender: String, amount: Coin },
     /// Undelegates currently staked portion of token
-    Undelegate {},
+    Undelegate { sender: String, amount: Coin },
     /// Claims rewards and then stake them
     Restake {},
     /// Undelegates all tokens

@@ -1,13 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    to_binary, Addr, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StakingMsg, StdResult,
 };
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK};
+use crate::state::{Config, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS};
 
 const CONTRACT_NAME: &str = "crates.io:interstake-yield-generator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -62,120 +62,77 @@ pub fn execute(
             owner,
             staking_addr,
             team_commision,
-        } => execute_update_config(deps, info, owner, staking_addr, team_commision),
-        ExecuteMsg::Delegate {} => execute_distribute(deps, env),
-        ExecuteMsg::Undelegate {} => execute_withdraw(deps, info, env),
-        ExecuteMsg::Restake {} => execute_withdraw(deps, info, env),
-        ExecuteMsg::UndelegateAll {} => execute_withdraw(deps, info, env),
+        } => execute::update_config(deps, info, owner, staking_addr, team_commision),
+        ExecuteMsg::Delegate { sender, amount } => {
+            let sender = deps.api.addr_validate(&sender)?;
+            execute::delegate(deps, info, sender, amount)
+        }
+        ExecuteMsg::Undelegate { sender, amount } => todo!(),
+        ExecuteMsg::Restake {} => todo!(),
+        ExecuteMsg::UndelegateAll {} => todo!(),
     }
 }
 
-pub fn execute_update_config(
-    deps: DepsMut,
-    info: MessageInfo,
-    new_owner: Option<String>,
-    new_staking_addr: Option<String>,
-    new_team_commision: Option<TeamCommision>,
-) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
-    if config.owner != info.sender {
-        return Err(ContractError::Unauthorized {});
+mod execute {
+    use super::*;
+
+    pub fn update_config(
+        deps: DepsMut,
+        info: MessageInfo,
+        new_owner: Option<String>,
+        new_staking_addr: Option<String>,
+        new_team_commision: Option<TeamCommision>,
+    ) -> Result<Response, ContractError> {
+        let mut config = CONFIG.load(deps.storage)?;
+        if config.owner != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+
+        if let Some(owner) = new_owner {
+            let owner = deps.api.addr_validate(&owner)?;
+            config.owner = owner;
+        }
+
+        if let Some(staking_addr) = new_staking_addr {
+            let staking_addr = deps.api.addr_validate(&staking_addr)?;
+            config.staking_addr = staking_addr;
+        }
+
+        if let Some(team_commision) = new_team_commision {
+            config.team_commision = team_commision;
+        }
+
+        Ok(Response::new().add_attribute("action", "config_updated"))
     }
 
-    if let Some(owner) = new_owner {
-        let owner = deps.api.addr_validate(&owner)?;
-        config.owner = owner;
+    pub fn delegate(
+        deps: DepsMut,
+        info: MessageInfo,
+        sender: Addr,
+        amount: Coin,
+    ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        if config.owner != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+
+        let msg = StakingMsg::Delegate {
+            validator: config.staking_addr.to_string(),
+            amount: amount.clone(),
+        };
+
+        STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
+            let mut stake_details = stake_details.unwrap_or_default();
+            stake_details.amount += amount.amount;
+            Ok(stake_details)
+        })?;
+
+        Ok(Response::new()
+            .add_attribute("action", "delegate")
+            .add_attribute("validator", config.staking_addr.to_string())
+            .add_attribute("amount", amount.to_string())
+            .add_message(msg))
     }
-
-    if let Some(staking_addr) = new_staking_addr {
-        let staking_addr = deps.api.addr_validate(&staking_addr)?;
-        config.staking_addr = staking_addr;
-    }
-
-    if let Some(team_commision) = new_team_commision {
-        config.team_commision = team_commision;
-    }
-
-    Ok(Response::new().add_attribute("action", "config_updated"))
-}
-
-// fn get_distribution_msg(deps: Deps, env: &Env) -> Result<Option<CosmosMsg>, ContractError> {
-//     let config = CONFIG.load(deps.storage)?;
-//     let last_payment_block = LAST_PAYMENT_BLOCK.load(deps.storage)?;
-//     let block_diff = env.block.height - last_payment_block;
-//     let pending_rewards: Uint128 = config.reward_rate * Uint128::new(block_diff.into());
-//
-//     let balance_info: cw20::BalanceResponse = deps.querier.query_wasm_smart(
-//         config.reward_token.clone(),
-//         &cw20::Cw20QueryMsg::Balance {
-//             address: env.contract.address.to_string(),
-//         },
-//     )?;
-//
-//     let amount = min(balance_info.balance, pending_rewards);
-//
-//     if amount == Uint128::zero() {
-//         return Ok(None);
-//     }
-//
-//     let msg = to_binary(&cw20::Cw20ExecuteMsg::Send {
-//         contract: config.staking_addr.clone().into_string(),
-//         amount,
-//         msg: to_binary(&stake_cw20::msg::ReceiveMsg::Fund {}).unwrap(),
-//     })?;
-//     let send_msg: CosmosMsg = WasmMsg::Execute {
-//         contract_addr: config.reward_token.into(),
-//         msg,
-//         funds: vec![],
-//     }
-//     .into();
-//
-//     Ok(Some(send_msg))
-// }
-
-pub fn execute_distribute(_deps: DepsMut, _env: Env) -> Result<Response, ContractError> {
-    Ok(Response::new())
-    // let msg = get_distribution_msg(deps.as_ref(), &env)?;
-    // LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
-    // Ok(Response::new()
-    //     .add_messages(msg)
-    //     .add_attribute("action", "distribute"))
-}
-
-pub fn execute_withdraw(
-    deps: DepsMut,
-    info: MessageInfo,
-    _env: Env,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.owner != info.sender {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    Ok(Response::new())
-    // let balance_info: cw20::BalanceResponse = deps.querier.query_wasm_smart(
-    //     config.reward_token.clone(),
-    //     &cw20::Cw20QueryMsg::Balance {
-    //         address: env.contract.address.to_string(),
-    //     },
-    // )?;
-
-    // let msg = to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-    //     recipient: config.owner.clone().into(),
-    //     amount: balance_info.balance,
-    // })?;
-    // let send_msg: CosmosMsg = WasmMsg::Execute {
-    //     contract_addr: config.reward_token.into(),
-    //     msg,
-    //     funds: vec![],
-    // }
-    // .into();
-
-    // Ok(Response::new()
-    //     .add_message(send_msg)
-    //     .add_attribute("action", "withdraw")
-    //     .add_attribute("amount", balance_info.balance)
-    //     .add_attribute("recipient", config.owner.into_string()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
