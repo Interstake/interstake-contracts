@@ -7,9 +7,8 @@ use cw_storage_plus::Item;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: Addr,
-    pub denom: String,
     pub staking_addr: Addr,
-    pub team_commision: Decimal,
+    pub team_commision: Option<Decimal>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

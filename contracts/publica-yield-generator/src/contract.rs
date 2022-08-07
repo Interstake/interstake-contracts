@@ -22,13 +22,11 @@ pub fn instantiate(
 
     let owner = deps.api.addr_validate(&msg.owner)?;
     let staking_addr = deps.api.addr_validate(&msg.staking_addr)?;
-    let team_commision = msg.team_commision.unwrap_or_default();
 
     let config = Config {
         owner: owner.clone(),
-        denom: msg.denom.clone(),
         staking_addr: staking_addr.clone(),
-        team_commision,
+        team_commision: msg.team_commision,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -38,9 +36,11 @@ pub fn instantiate(
     Ok(Response::new()
         .add_attribute("action", "instantiate")
         .add_attribute("owner", owner.into_string())
-        .add_attribute("denom", &msg.denom)
         .add_attribute("staking_addr", staking_addr.into_string())
-        .add_attribute("team_commision", team_commision.to_string()))
+        .add_attribute(
+            "team_commision",
+            msg.team_commision.unwrap_or_default().to_string(),
+        ))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -53,10 +53,9 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig {
             owner,
-            denom,
             staking_addr,
             team_commision,
-        } => execute_update_config(deps, info, env, owner, denom, staking_addr, team_commision),
+        } => execute_update_config(deps, info, env, owner, staking_addr, team_commision),
         ExecuteMsg::Delegate {} => execute_distribute(deps, env),
         ExecuteMsg::Undelegate {} => execute_withdraw(deps, info, env),
         ExecuteMsg::Restake {} => execute_withdraw(deps, info, env),
@@ -69,7 +68,6 @@ pub fn execute_update_config(
     info: MessageInfo,
     _env: Env,
     _owner: Option<String>,
-    _denom: Option<String>,
     _staking_addr: Option<String>,
     _team_commision: Option<Decimal>,
 ) -> Result<Response, ContractError> {
