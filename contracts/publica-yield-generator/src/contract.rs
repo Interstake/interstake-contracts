@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StakingMsg, StdResult,
+    from_binary, to_binary, Addr, Binary, Coin, DelegationResponse, Deps, DepsMut, DistributionMsg,
+    Env, MessageInfo, QueryRequest, Response, StakingMsg, StakingQuery, StdResult,
 };
 use cw2::set_contract_version;
 
@@ -71,7 +72,7 @@ pub fn execute(
             let sender = deps.api.addr_validate(&sender)?;
             execute::undelegate(deps, info, sender, amount)
         }
-        ExecuteMsg::Restake {} => todo!(),
+        ExecuteMsg::Restake {} => execute::restake(deps, env, info),
         ExecuteMsg::UndelegateAll {} => todo!(),
     }
 }
@@ -166,6 +167,42 @@ mod execute {
             .add_attribute("sender", sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_message(msg))
+    }
+
+    pub fn restake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        if config.owner != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+
+        let raw_delegation_response =
+            deps.querier
+                .query(&QueryRequest::Staking(StakingQuery::Delegation {
+                    delegator: env.contract.address.into(),
+                    validator: config.staking_addr.to_string(),
+                }))?;
+        let delegation_response: DelegationResponse = from_binary(&raw_delegation_response)?;
+        let reward = delegation_response
+            .delegation
+            .ok_or(ContractError::NoDelegationResponse {})?
+            .accumulated_rewards; // TODO: Check if reward is proper one and in Juno
+        if reward.is_empty() {
+            return Err(ContractError::RestakeNoReward {});
+        }
+
+        let reward_msg = DistributionMsg::WithdrawDelegatorReward {
+            validator: config.staking_addr.to_string(),
+        };
+        let delegate_msg = StakingMsg::Delegate {
+            validator: config.staking_addr.into(),
+            amount: reward[0].clone(),
+        };
+
+        Ok(Response::new()
+            .add_attribute("action", "restake")
+            .add_attribute("amount", reward[0].amount)
+            .add_message(reward_msg)
+            .add_message(delegate_msg))
     }
 }
 
