@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Coin, Decimal};
 
+use crate::state::TeamCommision;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
@@ -20,7 +22,7 @@ pub enum ExecuteMsg {
     UpdateConfig {
         owner: Option<String>,
         staking_addr: Option<String>,
-        team_commision: Option<Decimal>,
+        team_commision: Option<TeamCommision>,
     },
     /// Adds amount of liquid to common staking pool
     Delegate {},

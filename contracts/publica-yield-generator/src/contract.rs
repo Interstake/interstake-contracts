@@ -1,12 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Decimal};
+use cosmwasm_std::{
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+};
+use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, CONFIG, LAST_PAYMENT_BLOCK};
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
-use cw2::set_contract_version;
+use crate::state::{Config, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK};
 
 const CONTRACT_NAME: &str = "crates.io:interstake-yield-generator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -23,10 +24,16 @@ pub fn instantiate(
     let owner = deps.api.addr_validate(&msg.owner)?;
     let staking_addr = deps.api.addr_validate(&msg.staking_addr)?;
 
+    let team_commision = if let Some(commision) = msg.team_commision {
+        TeamCommision::Some(commision)
+    } else {
+        TeamCommision::None
+    };
+
     let config = Config {
         owner: owner.clone(),
         staking_addr: staking_addr.clone(),
-        team_commision: msg.team_commision,
+        team_commision: team_commision,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -55,7 +62,7 @@ pub fn execute(
             owner,
             staking_addr,
             team_commision,
-        } => execute_update_config(deps, info, env, owner, staking_addr, team_commision),
+        } => execute_update_config(deps, info, owner, staking_addr, team_commision),
         ExecuteMsg::Delegate {} => execute_distribute(deps, env),
         ExecuteMsg::Undelegate {} => execute_withdraw(deps, info, env),
         ExecuteMsg::Restake {} => execute_withdraw(deps, info, env),
@@ -66,46 +73,30 @@ pub fn execute(
 pub fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
-    _env: Env,
-    _owner: Option<String>,
-    _staking_addr: Option<String>,
-    _team_commision: Option<Decimal>,
+    new_owner: Option<String>,
+    new_staking_addr: Option<String>,
+    new_team_commision: Option<TeamCommision>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     if config.owner != info.sender {
         return Err(ContractError::Unauthorized {});
     }
 
-    Ok(Response::new())
-    // let distribution_msg = get_distribution_msg(deps.as_ref(), &env)?;
-    // LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
+    if let Some(owner) = new_owner {
+        let owner = deps.api.addr_validate(&owner)?;
+        config.owner = owner;
+    }
 
-    // let owner = deps.api.addr_validate(&owner)?;
-    // let staking_addr = deps.api.addr_validate(&staking_addr)?;
-    // if !validate_staking(deps.as_ref(), staking_addr.clone()) {
-    //     return Err(ContractError::InvalidStakingContract {});
-    // }
+    if let Some(staking_addr) = new_staking_addr {
+        let staking_addr = deps.api.addr_validate(&staking_addr)?;
+        config.staking_addr = staking_addr;
+    }
 
-    // let reward_token = deps.api.addr_validate(&reward_token)?;
-    // if !validate_cw20(deps.as_ref(), reward_token.clone()) {
-    //     return Err(ContractError::InvalidCw20 {});
-    // }
+    if let Some(team_commision) = new_team_commision {
+        config.team_commision = team_commision;
+    }
 
-    // let config = Config {
-    //     owner: owner.clone(),
-    //     staking_addr: staking_addr.clone(),
-    //     reward_token: reward_token.clone(),
-    //     reward_rate,
-    // };
-    // CONFIG.save(deps.storage, &config)?;
-
-    // Ok(Response::new()
-    //     .add_messages(distribution_msg)
-    //     .add_attribute("action", "update_config")
-    //     .add_attribute("owner", owner.into_string())
-    //     .add_attribute("staking_addr", staking_addr.into_string())
-    //     .add_attribute("reward_token", reward_token.into_string())
-    //     .add_attribute("reward_rate", reward_rate))
+    Ok(Response::new().add_attribute("action", "config_updated"))
 }
 
 // fn get_distribution_msg(deps: Deps, env: &Env) -> Result<Option<CosmosMsg>, ContractError> {
