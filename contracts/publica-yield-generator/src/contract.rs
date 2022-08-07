@@ -67,7 +67,10 @@ pub fn execute(
             let sender = deps.api.addr_validate(&sender)?;
             execute::delegate(deps, info, sender, amount)
         }
-        ExecuteMsg::Undelegate { sender, amount } => todo!(),
+        ExecuteMsg::Undelegate { sender, amount } => {
+            let sender = deps.api.addr_validate(&sender)?;
+            execute::undelegate(deps, info, sender, amount)
+        }
         ExecuteMsg::Restake {} => todo!(),
         ExecuteMsg::UndelegateAll {} => todo!(),
     }
@@ -130,6 +133,37 @@ mod execute {
         Ok(Response::new()
             .add_attribute("action", "delegate")
             .add_attribute("validator", config.staking_addr.to_string())
+            .add_attribute("sender", sender.to_string())
+            .add_attribute("amount", amount.to_string())
+            .add_message(msg))
+    }
+
+    pub fn undelegate(
+        deps: DepsMut,
+        info: MessageInfo,
+        sender: Addr,
+        amount: Coin,
+    ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        if config.owner != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+
+        let msg = StakingMsg::Undelegate {
+            validator: config.staking_addr.to_string(),
+            amount: amount.clone(),
+        };
+
+        STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
+            let mut stake_details = stake_details.unwrap_or_default();
+            stake_details.amount -= amount.amount;
+            Ok(stake_details)
+        })?;
+
+        Ok(Response::new()
+            .add_attribute("action", "undelegate")
+            .add_attribute("validator", config.staking_addr.to_string())
+            .add_attribute("sender", sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_message(msg))
     }
