@@ -8,7 +8,7 @@ use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS};
+use crate::state::{Config, Stake, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS};
 
 const CONTRACT_NAME: &str = "crates.io:interstake-yield-generator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -66,7 +66,7 @@ pub fn execute(
         } => execute::update_config(deps, info, owner, staking_addr, team_commision),
         ExecuteMsg::Delegate { sender, amount } => {
             let sender = deps.api.addr_validate(&sender)?;
-            execute::delegate(deps, info, sender, amount)
+            execute::delegate(deps, env, info, sender, amount)
         }
         ExecuteMsg::Undelegate { sender, amount } => {
             let sender = deps.api.addr_validate(&sender)?;
@@ -111,6 +111,7 @@ mod execute {
 
     pub fn delegate(
         deps: DepsMut,
+        env: Env,
         info: MessageInfo,
         sender: Addr,
         amount: Coin,
@@ -125,9 +126,13 @@ mod execute {
             amount: amount.clone(),
         };
 
+        let stake = Stake {
+            amount: amount.clone(),
+            join_height: env.block.height,
+        };
         STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
             let mut stake_details = stake_details.unwrap_or_default();
-            stake_details.amount += amount.amount;
+            stake_details.partials.push(stake);
             Ok(stake_details)
         })?;
 
@@ -157,7 +162,7 @@ mod execute {
 
         STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
             let mut stake_details = stake_details.unwrap_or_default();
-            stake_details.amount -= amount.amount;
+            stake_details.total = stake_details.total.checked_sub(amount.amount)?;
             Ok(stake_details)
         })?;
 
