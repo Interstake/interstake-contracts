@@ -8,7 +8,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
     Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS, TOTAL,
 };
@@ -337,4 +337,9 @@ mod query {
             Ok(reward[0].clone())
         }
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::new())
 }
