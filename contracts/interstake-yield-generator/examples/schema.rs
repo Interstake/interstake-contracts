@@ -3,9 +3,9 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 use interstake_yield_generator::msg::{
-    DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TotalDelegatedResponse,
+    DelegateResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, TotalDelegatedResponse,
 };
-use interstake_yield_generator::state::Config;
+use interstake_yield_generator::state::{Config, Stake, StakeDetails, TeamCommision};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -19,4 +19,8 @@ fn main() {
     export_schema(&schema_for!(DelegateResponse), &out_dir);
     export_schema(&schema_for!(TotalDelegatedResponse), &out_dir);
     export_schema(&schema_for!(Config), &out_dir);
+    export_schema(&schema_for!(Stake), &out_dir);
+    export_schema(&schema_for!(StakeDetails), &out_dir);
+    export_schema(&schema_for!(MigrateMsg), &out_dir);
+    export_schema(&schema_for!(TeamCommision), &out_dir);
 }
