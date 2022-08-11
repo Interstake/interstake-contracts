@@ -3,7 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, from_binary, to_binary, Addr, Binary, Coin, Decimal, DelegationResponse, Deps, DepsMut,
     DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StakingQuery,
-    StdResult, Uint128,
+    StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 
@@ -194,29 +194,18 @@ mod execute {
             })
             .collect::<StdResult<HashMap<Addr, StakeDetails>>>()?;
 
-        // Query reward
-        let raw_delegation_response =
-            deps.querier
-                .query(&QueryRequest::Staking(StakingQuery::Delegation {
-                    delegator: env.contract.address.into(),
-                    validator: config.staking_addr.to_string(),
-                }))?;
-        let delegation_response: DelegationResponse = from_binary(&raw_delegation_response)?;
-        let reward = delegation_response
-            .delegation
-            .ok_or(ContractError::NoDelegationResponse {})?
-            .accumulated_rewards; // TODO: Check if reward is proper one and in Juno
-        if reward.is_empty() {
+        let reward = query::reward(deps.as_ref(), &env, config.clone())?;
+        if reward.amount == Uint128::zero() {
             return Err(ContractError::RestakeNoReward {});
         }
 
         // Decrease reward of team_commision
         let reward = match config.team_commision {
             TeamCommision::Some(commision) => coin(
-                (reward[0].amount - commision * reward[0].amount).u128(),
-                reward[0].denom.clone(),
+                (reward.amount - commision * reward.amount).u128(),
+                reward.denom,
             ),
-            TeamCommision::None => reward[0].clone(),
+            TeamCommision::None => reward,
         };
 
         let reward_msg = DistributionMsg::WithdrawDelegatorReward {
@@ -286,11 +275,12 @@ mod execute {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query::config(deps)?),
         QueryMsg::Delegated { sender } => to_binary(&query::delegated(deps, sender)?),
         QueryMsg::TotalDelegated {} => to_binary(&query::total(deps)?),
+        QueryMsg::Reward {} => to_binary(&query::reward(deps, &env, None)?),
     }
 }
 
@@ -321,5 +311,30 @@ mod query {
 
     pub fn total(deps: Deps) -> StdResult<Uint128> {
         TOTAL.load(deps.storage)
+    }
+
+    pub fn reward(deps: Deps, env: &Env, config: impl Into<Option<Config>>) -> StdResult<Coin> {
+        let config = if let Some(config) = config.into() {
+            config
+        } else {
+            CONFIG.load(deps.storage)?
+        };
+        // Query reward
+        let raw_delegation_response =
+            deps.querier
+                .query(&QueryRequest::Staking(StakingQuery::Delegation {
+                    delegator: env.contract.address.to_string(),
+                    validator: config.staking_addr.to_string(),
+                }))?;
+        let delegation_response: DelegationResponse = from_binary(&raw_delegation_response)?;
+        let reward = delegation_response
+            .delegation
+            .ok_or_else(|| StdError::generic_err("No delegation response"))?
+            .accumulated_rewards; // TODO: Check if reward is proper one and in Juno
+        if reward.is_empty() {
+            Ok(coin(0u128, "juno"))
+        } else {
+            Ok(reward[0].clone())
+        }
     }
 }

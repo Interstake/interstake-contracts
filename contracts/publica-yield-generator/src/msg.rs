@@ -44,6 +44,8 @@ pub enum QueryMsg {
     TotalDelegated {},
     /// Returns information about sender's delegation
     Delegated { sender: String },
+    /// Current available reward to claim
+    Reward {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

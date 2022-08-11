@@ -18,9 +18,6 @@ pub enum ContractError {
     #[error("Invalid Staking Contract")]
     InvalidStakingContract {},
 
-    #[error("Delegation error - query doesn't find any")]
-    NoDelegationResponse {},
-
     #[error("Restake error - no reward available to restake")]
     RestakeNoReward {},
 }
