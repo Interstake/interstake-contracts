@@ -19,16 +19,17 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    /// Only called by owner
     UpdateConfig {
         owner: Option<String>,
         staking_addr: Option<String>,
         team_commision: Option<TeamCommision>,
     },
-    /// Adds amount of liquid to common staking pool
+    /// Adds amount of tokens to common staking pool
     Delegate { amount: Coin },
     /// Undelegates currently staked portion of token
     Undelegate { amount: Coin },
-    /// Claims rewards and then stake them
+    /// Claims rewards and then stake them; Only called by owner
     Restake {},
     /// Undelegates all tokens
     UndelegateAll {},

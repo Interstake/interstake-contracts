@@ -52,5 +52,8 @@ impl StakeDetails {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
+// Total amount of staked tokens
+// TODO: Replace with Vec<Coin>
+pub const TOTAL: Item<Uint128> = Item::new("total");
 pub const LAST_PAYMENT_BLOCK: Item<u64> = Item::new("last_payment_block");
 pub const STAKE_DETAILS: Map<&Addr, StakeDetails> = Map::new("stake_details");

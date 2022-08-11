@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Coin, Decimal, DelegationResponse, Deps, DepsMut,
+    coin, from_binary, to_binary, Addr, Binary, Coin, Decimal, DelegationResponse, Deps, DepsMut,
     DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StakingQuery,
     StdResult, Uint128,
 };
@@ -10,7 +10,7 @@ use cw2::set_contract_version;
 use crate::error::ContractError;
 use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{
-    Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS,
+    Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS, TOTAL,
 };
 
 use std::collections::HashMap;
@@ -45,6 +45,7 @@ pub fn instantiate(
 
     // Initialize last payment block
     LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
+    TOTAL.save(deps.storage, &Uint128::zero())?;
 
     Ok(Response::new()
         .add_attribute("action", "instantiate")
@@ -138,6 +139,10 @@ mod execute {
             },
         )?;
 
+        TOTAL.update(deps.storage, |total| -> StdResult<_> {
+            Ok(total + amount.amount)
+        })?;
+
         Ok(Response::new()
             .add_attribute("action", "delegate")
             .add_attribute("validator", config.staking_addr.to_string())
@@ -153,14 +158,18 @@ mod execute {
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
 
+        let mut stake_details = STAKE_DETAILS.load(deps.storage, &info.sender)?;
+        stake_details.consolidate_partials(deps.storage)?;
+        stake_details.total.amount = stake_details.total.amount.checked_sub(amount.amount)?;
+
         let msg = StakingMsg::Undelegate {
             validator: config.staking_addr.to_string(),
             amount: amount.clone(),
         };
 
-        let mut stake_details = STAKE_DETAILS.load(deps.storage, &info.sender)?;
-        stake_details.consolidate_partials(deps.storage)?;
-        stake_details.total.amount = stake_details.total.amount.checked_sub(amount.amount)?;
+        TOTAL.update(deps.storage, |total| -> StdResult<_> {
+            Ok(total - amount.amount)
+        })?;
 
         Ok(Response::new()
             .add_attribute("action", "undelegate")
@@ -185,6 +194,7 @@ mod execute {
             })
             .collect::<StdResult<HashMap<Addr, StakeDetails>>>()?;
 
+        // Query reward
         let raw_delegation_response =
             deps.querier
                 .query(&QueryRequest::Staking(StakingQuery::Delegation {
@@ -199,6 +209,15 @@ mod execute {
         if reward.is_empty() {
             return Err(ContractError::RestakeNoReward {});
         }
+
+        // Decrease reward of team_commision
+        let reward = match config.team_commision {
+            TeamCommision::Some(commision) => coin(
+                (reward[0].amount - commision * reward[0].amount).u128(),
+                reward[0].denom.clone(),
+            ),
+            TeamCommision::None => reward[0].clone(),
+        };
 
         let reward_msg = DistributionMsg::WithdrawDelegatorReward {
             validator: config.staking_addr.to_string(),
@@ -238,7 +257,7 @@ mod execute {
 
         addr_and_weight.into_iter().for_each(|(addr, weight)| {
             // Weight of that one particular stake
-            let stakes_reward = weight * reward[0].amount; // TODO: Modify that by checking properly denom; later
+            let stakes_reward = weight * reward.amount; // TODO: Modify that by checking properly denom; later
             if let Some(stake_detail) = stakes.get_mut(&addr) {
                 (*stake_detail).earnings += stakes_reward;
                 (*stake_detail).total.amount += stakes_reward;
@@ -247,15 +266,20 @@ mod execute {
 
         let delegate_msg = StakingMsg::Delegate {
             validator: config.staking_addr.into(),
-            amount: reward[0].clone(),
+            amount: reward.clone(),
         };
 
         // Update last payment height with current height
         LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
 
+        // Update total amount of staked tokens with latest reward
+        TOTAL.update(deps.storage, |total| -> StdResult<_> {
+            Ok(total + reward.amount)
+        })?;
+
         Ok(Response::new()
             .add_attribute("action", "restake")
-            .add_attribute("amount", reward[0].amount)
+            .add_attribute("amount", reward.amount)
             .add_message(reward_msg)
             .add_message(delegate_msg))
     }
@@ -266,7 +290,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query::config(deps)?),
         QueryMsg::Delegated { sender } => to_binary(&query::delegated(deps, sender)?),
-        QueryMsg::TotalDelegated {} => to_binary(&""),
+        QueryMsg::TotalDelegated {} => to_binary(&query::total(deps)?),
     }
 }
 
@@ -293,5 +317,9 @@ mod query {
             total_staked,
             total_earnings: delegated.earnings,
         })
+    }
+
+    pub fn total(deps: Deps) -> StdResult<Uint128> {
+        TOTAL.load(deps.storage)
     }
 }
