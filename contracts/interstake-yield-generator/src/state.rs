@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Decimal, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, StdResult, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -51,9 +51,17 @@ impl StakeDetails {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct ClaimDetails {
+    pub release_timestamp: Timestamp,
+    pub amount: Coin,
+}
+
 pub const CONFIG: Item<Config> = Item::new("config");
 // Total amount of staked tokens
 // TODO: Replace with Vec<Coin>
 pub const TOTAL: Item<Uint128> = Item::new("total");
 pub const LAST_PAYMENT_BLOCK: Item<u64> = Item::new("last_payment_block");
 pub const STAKE_DETAILS: Map<&Addr, StakeDetails> = Map::new("stake_details");
+pub const UNBONDING_CLAIMS: Map<&Addr, Vec<ClaimDetails>> = Map::new("unbonding_claims");
