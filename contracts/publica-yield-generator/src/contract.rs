@@ -1,14 +1,19 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Binary, Coin, DelegationResponse, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, QueryRequest, Response, StakingMsg, StakingQuery, StdResult
+    from_binary, to_binary, Addr, Binary, Coin, Decimal, DelegationResponse, Deps, DepsMut,
+    DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StakingQuery,
+    StdResult, Uint128,
 };
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, Stake, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS};
+use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{
+    Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS,
+};
+
+use std::collections::HashMap;
 
 const CONTRACT_NAME: &str = "crates.io:interstake-yield-generator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -34,7 +39,7 @@ pub fn instantiate(
     let config = Config {
         owner: owner.clone(),
         staking_addr: staking_addr.clone(),
-        team_commision: team_commision,
+        team_commision,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -123,11 +128,15 @@ mod execute {
             amount: amount.clone(),
             join_height: env.block.height,
         };
-        STAKE_DETAILS.update(deps.storage, &info.sender, |stake_details| -> StdResult<_> {
-            let mut stake_details = stake_details.unwrap_or_default();
-            stake_details.partials.push(stake);
-            Ok(stake_details)
-        })?;
+        STAKE_DETAILS.update(
+            deps.storage,
+            &info.sender,
+            |stake_details| -> StdResult<_> {
+                let mut stake_details = stake_details.unwrap_or_default();
+                stake_details.partials.push(stake);
+                Ok(stake_details)
+            },
+        )?;
 
         Ok(Response::new()
             .add_attribute("action", "delegate")
@@ -167,13 +176,14 @@ mod execute {
             return Err(ContractError::Unauthorized {});
         }
 
-        // TODO: Add consolidating_partials proper implementation
-        // STAKE_DETAILS.range(deps.storage, None, None, Order::Ascending)
-        //     .map(|mapping| {
-        //         let (_, stake_detail) = mapping?;
-        //         stake_detail.consolidate_partials(deps.storage)
-        // })
-        //     .collect::<StdResult<()>>()?;
+        let mut stakes = STAKE_DETAILS
+            .range(deps.storage, None, None, Order::Ascending)
+            .map(|mapping| {
+                let (addr, mut stake_detail) = mapping?;
+                stake_detail.consolidate_partials(deps.storage)?;
+                Ok((addr, stake_detail))
+            })
+            .collect::<StdResult<HashMap<Addr, StakeDetails>>>()?;
 
         let raw_delegation_response =
             deps.querier
@@ -194,13 +204,54 @@ mod execute {
             validator: config.staking_addr.to_string(),
         };
 
-        // TODO: Add accumulating rewards to users
+        let last_payment_block = LAST_PAYMENT_BLOCK.load(deps.storage)?;
 
+        // Map of each total stake with weight 1.0 and partial stakes with appropriate weights
+        let mut addr_and_weight: HashMap<Addr, Decimal> = HashMap::new();
+        // Sum of all weights to calculate reward
+        let mut sum_of_weights = Decimal::zero();
+
+        stakes.iter().for_each(|(addr, stake_detail)| {
+            // Add total staked weight 1.0 * stake
+            let weight = Decimal::from_ratio(stake_detail.total.amount, Uint128::new(1u128));
+            addr_and_weight.insert(addr.clone(), weight);
+            sum_of_weights += weight;
+
+            // Iter through all partial stakes (those which doesn't count fully to reward)
+            stake_detail.partials.iter().for_each(|stake| {
+                // Calulate relative "height period" since last payment block
+                let current_reward_range = env.block.height - last_payment_block;
+                // Calculate when that stake has been added given relative height
+                let join_height_compared = stake.join_height - last_payment_block;
+                // Calculate ratio at which point given stake was added
+                let partial_stake_weight =
+                    Decimal::from_ratio(join_height_compared, current_reward_range);
+                // Add partial staked weight - partial_weight * stake
+                let weight = Decimal::from_ratio(
+                    stake.amount.amount * partial_stake_weight,
+                    Uint128::new(1u128),
+                );
+                addr_and_weight.insert(addr.clone(), weight);
+                sum_of_weights += weight;
+            });
+        });
+
+        addr_and_weight.into_iter().for_each(|(addr, weight)| {
+            // Weight of that one particular stake
+            let stakes_reward = weight * reward[0].amount; // TODO: Modify that by checking properly denom; later
+            if let Some(stake_detail) = stakes.get_mut(&addr) {
+                (*stake_detail).earnings += stakes_reward;
+                (*stake_detail).total.amount += stakes_reward;
+            }
+        });
 
         let delegate_msg = StakingMsg::Delegate {
             validator: config.staking_addr.into(),
             amount: reward[0].clone(),
         };
+
+        // Update last payment height with current height
+        LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
 
         Ok(Response::new()
             .add_attribute("action", "restake")
@@ -226,17 +277,21 @@ mod query {
         CONFIG.load(deps.storage)
     }
 
-    pub fn delegated(deps: Deps, sender: String) -> StdResult<u128> {
+    pub fn delegated(deps: Deps, sender: String) -> StdResult<DelegateResponse> {
         let sender_addr = deps.api.addr_validate(&sender)?;
 
         let delegated = STAKE_DETAILS.load(deps.storage, &sender_addr)?;
-        let partial_stakes = delegated.partials.iter().map(|stake| stake.amount.amount).sum();
+        let partial_stakes: Uint128 = delegated
+            .partials
+            .iter()
+            .map(|stake| stake.amount.amount)
+            .sum();
         let total_staked = delegated.total.amount + partial_stakes;
 
-        Ok(DelegatedResponse {
+        Ok(DelegateResponse {
             start_height: delegated.start_height,
             total_staked,
-            current_rewards: delegated.rewards,
-        }
+            total_earnings: delegated.earnings,
+        })
     }
 }

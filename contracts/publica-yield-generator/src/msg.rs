@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, Decimal};
+use cosmwasm_std::{Coin, Decimal, Uint128};
 
 use crate::state::TeamCommision;
 
@@ -49,9 +49,8 @@ pub enum QueryMsg {
 #[serde(rename_all = "snake_case")]
 pub struct DelegateResponse {
     pub start_height: u64,
-    pub total_staked: u128,
-    pub current_reward: u128,
-    pub total_rewards: u128,
+    pub total_staked: Uint128,
+    pub total_earnings: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

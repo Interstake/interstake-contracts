@@ -31,7 +31,7 @@ pub struct Stake {
 pub struct StakeDetails {
     pub total: Coin,
     pub partials: Vec<Stake>,
-    pub rewards: Uint128,
+    pub earnings: Uint128,
     pub start_height: u64,
 }
 
