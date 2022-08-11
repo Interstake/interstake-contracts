@@ -1,5 +1,5 @@
 [package]
-name = "publica-yield-generator"
+name = "interstake-yield-generator"
 version = "0.1.0"
 edition = "2021"
 authors = ["Jakub Bogucki <software-solutions@tuta.io>"]
