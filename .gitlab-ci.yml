@@ -1,13 +1,13 @@
-image: rust:1.57.0
+image: rust:1.59.0
 
 stages:
 - build
 - test
 
-contract_publica_yield_generator:
+contract_interstake_yield_generator:
   stage: test
   script:
-  - cd contracts/publica-yield-generator
+  - cd contracts/interstake-yield-generator
   - rustc --version; cargo --version; rustup --version
   - RUST_BACKTRACE=1 cargo test --locked
   - cargo schema --locked
@@ -40,4 +40,4 @@ wasm_build:
       echo "Compiling $(basename $C) ..."
       (cd $C && cargo build --release --target wasm32-unknown-unknown --locked)
     done
-  - cargo install --debug --features iterator --example check_contract --version 1.0.0-beta6 -- cosmwasm-vm
+  - cargo install --debug --features iterator --example check_contract --version 1.0.0 -- cosmwasm-vm
