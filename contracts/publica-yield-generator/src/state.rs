@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -29,9 +29,26 @@ pub struct Stake {
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct StakeDetails {
-    pub total: Uint128,
+    pub total: Coin,
     pub partials: Vec<Stake>,
     pub rewards: Uint128,
+    pub start_height: u64,
+}
+
+impl StakeDetails {
+    /// Check all partial weight stakes if should be counted as full weighted stake
+    pub fn consolidate_partials(&mut self, storage: &dyn Storage) -> StdResult<()> {
+        let last_payment_block = LAST_PAYMENT_BLOCK.load(storage)?;
+        self.partials.retain(|stake| {
+            // if stake was added before last payment, it means it should be counted as full weighted stake
+            if stake.join_height <= last_payment_block {
+                self.total.amount += stake.amount.amount;
+                return false;
+            }
+            true
+        });
+        Ok(())
+    }
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

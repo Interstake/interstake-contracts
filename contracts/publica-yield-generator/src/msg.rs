@@ -25,9 +25,9 @@ pub enum ExecuteMsg {
         team_commision: Option<TeamCommision>,
     },
     /// Adds amount of liquid to common staking pool
-    Delegate { sender: String, amount: Coin },
+    Delegate { amount: Coin },
     /// Undelegates currently staked portion of token
-    Undelegate { sender: String, amount: Coin },
+    Undelegate { amount: Coin },
     /// Claims rewards and then stake them
     Restake {},
     /// Undelegates all tokens
@@ -42,14 +42,16 @@ pub enum QueryMsg {
     /// Returns total amount of delegated tokens
     TotalDelegated {},
     /// Returns information about sender's delegation
-    Delegate {},
+    Delegated { sender: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct DelegateResponse {
     pub start_height: u64,
-    pub total_earnings: Coin,
+    pub total_staked: u128,
+    pub current_reward: u128,
+    pub total_rewards: u128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

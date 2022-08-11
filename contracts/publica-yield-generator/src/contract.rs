@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Coin, DelegationResponse, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, QueryRequest, Response, StakingMsg, StakingQuery, StdResult,
+    from_binary, to_binary, Binary, Coin, DelegationResponse, Deps, DepsMut, DistributionMsg,
+    Env, MessageInfo, QueryRequest, Response, StakingMsg, StakingQuery, StdResult
 };
 use cw2::set_contract_version;
 
@@ -64,14 +64,8 @@ pub fn execute(
             staking_addr,
             team_commision,
         } => execute::update_config(deps, info, owner, staking_addr, team_commision),
-        ExecuteMsg::Delegate { sender, amount } => {
-            let sender = deps.api.addr_validate(&sender)?;
-            execute::delegate(deps, env, info, sender, amount)
-        }
-        ExecuteMsg::Undelegate { sender, amount } => {
-            let sender = deps.api.addr_validate(&sender)?;
-            execute::undelegate(deps, info, sender, amount)
-        }
+        ExecuteMsg::Delegate { amount } => execute::delegate(deps, env, info, amount),
+        ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, info, amount),
         ExecuteMsg::Restake {} => execute::restake(deps, env, info),
         ExecuteMsg::UndelegateAll {} => todo!(),
     }
@@ -113,7 +107,6 @@ mod execute {
         deps: DepsMut,
         env: Env,
         info: MessageInfo,
-        sender: Addr,
         amount: Coin,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
@@ -130,7 +123,7 @@ mod execute {
             amount: amount.clone(),
             join_height: env.block.height,
         };
-        STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
+        STAKE_DETAILS.update(deps.storage, &info.sender, |stake_details| -> StdResult<_> {
             let mut stake_details = stake_details.unwrap_or_default();
             stake_details.partials.push(stake);
             Ok(stake_details)
@@ -139,7 +132,7 @@ mod execute {
         Ok(Response::new()
             .add_attribute("action", "delegate")
             .add_attribute("validator", config.staking_addr.to_string())
-            .add_attribute("sender", sender.to_string())
+            .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_message(msg))
     }
@@ -147,29 +140,23 @@ mod execute {
     pub fn undelegate(
         deps: DepsMut,
         info: MessageInfo,
-        sender: Addr,
         amount: Coin,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
-        if config.owner != info.sender {
-            return Err(ContractError::Unauthorized {});
-        }
 
         let msg = StakingMsg::Undelegate {
             validator: config.staking_addr.to_string(),
             amount: amount.clone(),
         };
 
-        STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
-            let mut stake_details = stake_details.unwrap_or_default();
-            stake_details.total = stake_details.total.checked_sub(amount.amount)?;
-            Ok(stake_details)
-        })?;
+        let mut stake_details = STAKE_DETAILS.load(deps.storage, &info.sender)?;
+        stake_details.consolidate_partials(deps.storage)?;
+        stake_details.total.amount = stake_details.total.amount.checked_sub(amount.amount)?;
 
         Ok(Response::new()
             .add_attribute("action", "undelegate")
             .add_attribute("validator", config.staking_addr.to_string())
-            .add_attribute("sender", sender.to_string())
+            .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_message(msg))
     }
@@ -179,6 +166,14 @@ mod execute {
         if config.owner != info.sender {
             return Err(ContractError::Unauthorized {});
         }
+
+        // TODO: Add consolidating_partials proper implementation
+        // STAKE_DETAILS.range(deps.storage, None, None, Order::Ascending)
+        //     .map(|mapping| {
+        //         let (_, stake_detail) = mapping?;
+        //         stake_detail.consolidate_partials(deps.storage)
+        // })
+        //     .collect::<StdResult<()>>()?;
 
         let raw_delegation_response =
             deps.querier
@@ -198,6 +193,10 @@ mod execute {
         let reward_msg = DistributionMsg::WithdrawDelegatorReward {
             validator: config.staking_addr.to_string(),
         };
+
+        // TODO: Add accumulating rewards to users
+
+
         let delegate_msg = StakingMsg::Delegate {
             validator: config.staking_addr.into(),
             amount: reward[0].clone(),
@@ -212,10 +211,32 @@ mod execute {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&""),
-        QueryMsg::Delegate {} => to_binary(&""),
+        QueryMsg::Config {} => to_binary(&query::config(deps)?),
+        QueryMsg::Delegated { sender } => to_binary(&query::delegated(deps, sender)?),
         QueryMsg::TotalDelegated {} => to_binary(&""),
+    }
+}
+
+mod query {
+    use super::*;
+
+    pub fn config(deps: Deps) -> StdResult<Config> {
+        CONFIG.load(deps.storage)
+    }
+
+    pub fn delegated(deps: Deps, sender: String) -> StdResult<u128> {
+        let sender_addr = deps.api.addr_validate(&sender)?;
+
+        let delegated = STAKE_DETAILS.load(deps.storage, &sender_addr)?;
+        let partial_stakes = delegated.partials.iter().map(|stake| stake.amount.amount).sum();
+        let total_staked = delegated.total.amount + partial_stakes;
+
+        Ok(DelegatedResponse {
+            start_height: delegated.start_height,
+            total_staked,
+            current_rewards: delegated.rewards,
+        }
     }
 }
