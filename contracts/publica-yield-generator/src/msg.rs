@@ -1,14 +1,15 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, Decimal};
+use cosmwasm_std::{Coin, Decimal, Uint128};
+
+use crate::state::TeamCommision;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
     /// Multisig contract that is allowed to perform admin operations
     pub owner: String,
-    /// Denom in which contract stakes
-    pub denom: String,
     /// Address of validator
     pub staking_addr: String,
     /// Commission of Intrastake team
@@ -18,17 +19,17 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    /// Only called by owner
     UpdateConfig {
         owner: Option<String>,
-        denom: Option<String>,
         staking_addr: Option<String>,
-        team_commision: Option<Decimal>,
+        team_commision: Option<TeamCommision>,
     },
-    /// Adds amount of liquid to common staking pool
-    Delegate {},
+    /// Adds amount of tokens to common staking pool
+    Delegate { amount: Coin },
     /// Undelegates currently staked portion of token
-    Undelegate {},
-    /// Claims rewards and then stake them
+    Undelegate { amount: Coin },
+    /// Claims rewards and then stake them; Only called by owner
     Restake {},
     /// Undelegates all tokens
     UndelegateAll {},
@@ -42,16 +43,21 @@ pub enum QueryMsg {
     /// Returns total amount of delegated tokens
     TotalDelegated {},
     /// Returns information about sender's delegation
-    Delegate {},
+    Delegated { sender: String },
+    /// Current available reward to claim
+    Reward {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub struct DelegateResponse {
     pub start_height: u64,
-    pub total_earnings: Coin,
+    pub total_staked: Uint128,
+    pub total_earnings: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub struct TotalDelegatedResponse {
     pub amount: Coin,
 }
