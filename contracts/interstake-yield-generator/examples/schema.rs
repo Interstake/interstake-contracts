@@ -5,7 +5,7 @@ use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 use interstake_yield_generator::msg::{
     DelegateResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, TotalDelegatedResponse,
 };
-use interstake_yield_generator::state::{Config, Stake, StakeDetails, TeamCommision};
+use interstake_yield_generator::state::{ClaimDetails, Config, Stake, StakeDetails, TeamCommision};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -23,4 +23,5 @@ fn main() {
     export_schema(&schema_for!(StakeDetails), &out_dir);
     export_schema(&schema_for!(MigrateMsg), &out_dir);
     export_schema(&schema_for!(TeamCommision), &out_dir);
+    export_schema(&schema_for!(ClaimDetails), &out_dir);
 }

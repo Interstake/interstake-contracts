@@ -29,6 +29,8 @@ pub enum ExecuteMsg {
     Delegate { amount: Coin },
     /// Undelegates currently staked portion of token
     Undelegate { amount: Coin },
+    /// Transfers to sender any unbonding claims that met their deadline
+    Claim {},
     /// Claims rewards and then stake them; Only called by owner
     Restake {},
     /// Undelegates all tokens
@@ -46,6 +48,8 @@ pub enum QueryMsg {
     Delegated { sender: String },
     /// Current available reward to claim
     Reward {},
+    /// Returns all current unbonding claims for sender
+    Claims { sender: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

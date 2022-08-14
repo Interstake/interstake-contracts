@@ -1,22 +1,25 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, from_binary, to_binary, Addr, Binary, Coin, Decimal, DelegationResponse, Deps, DepsMut,
-    DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StakingQuery,
-    StdError, StdResult, Uint128,
+    coin, from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, DelegationResponse, Deps,
+    DepsMut, DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg,
+    StakingQuery, StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
-    Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS, TOTAL,
+    ClaimDetails, Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK,
+    STAKE_DETAILS, TOTAL, UNBONDING_CLAIMS,
 };
 
 use std::collections::HashMap;
 
 const CONTRACT_NAME: &str = "crates.io:interstake-yield-generator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const TWENTY_EIGHT_DAYS_SECONDS: u64 = 3600 * 24 * 28;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -71,7 +74,8 @@ pub fn execute(
             team_commision,
         } => execute::update_config(deps, info, owner, staking_addr, team_commision),
         ExecuteMsg::Delegate { amount } => execute::delegate(deps, env, info, amount),
-        ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, info, amount),
+        ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
+        ExecuteMsg::Claim {} => execute::claim(deps, env, info),
         ExecuteMsg::Restake {} => execute::restake(deps, env, info),
         ExecuteMsg::UndelegateAll {} => todo!(),
     }
@@ -153,6 +157,7 @@ mod execute {
 
     pub fn undelegate(
         deps: DepsMut,
+        env: Env,
         info: MessageInfo,
         amount: Coin,
     ) -> Result<Response, ContractError> {
@@ -171,12 +176,59 @@ mod execute {
             Ok(total - amount.amount)
         })?;
 
+        // Unbonding will result in coins going back to contract.
+        // Create a claim to later be able to get tokens back.
+        let next_month = env.block.time.plus_seconds(TWENTY_EIGHT_DAYS_SECONDS);
+        UNBONDING_CLAIMS.update(deps.storage, &info.sender, |vec_claims| -> StdResult<_> {
+            let mut vec_claims = vec_claims.unwrap_or_default();
+            vec_claims.push(ClaimDetails {
+                release_timestamp: next_month,
+                amount: amount.clone(),
+            });
+            Ok(vec_claims)
+        })?;
+
         Ok(Response::new()
             .add_attribute("action", "undelegate")
             .add_attribute("validator", config.staking_addr.to_string())
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_message(msg))
+    }
+
+    pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+        let mut claims = query::claims(deps.as_ref(), info.sender.clone())?;
+
+        let amounts = claims
+            .clone()
+            .into_iter()
+            .filter(|claim| claim.release_timestamp > env.block.time)
+            .enumerate()
+            .map(|(index, _)| Ok(claims.remove(index)))
+            .map(|claim: StdResult<ClaimDetails>| {
+                let claim = claim?;
+                Ok(claim.amount)
+            })
+            .collect::<StdResult<Vec<Coin>>>()?;
+
+        let msg = BankMsg::Send {
+            to_address: info.sender.to_string(),
+            amount: amounts.clone(),
+        };
+
+        let mut response = Response::new()
+            .add_attribute("action", "claim_unbonded_tokens")
+            .add_attribute("sender", info.sender.to_string());
+
+        amounts.iter().for_each(|amount| {
+            response = response.clone().add_attribute("amount", amount.amount);
+            response = response
+                .clone()
+                .add_attribute("denom", amount.denom.clone());
+        });
+        response = response.add_message(msg);
+
+        Ok(response)
     }
 
     pub fn restake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
@@ -281,6 +333,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Delegated { sender } => to_binary(&query::delegated(deps, sender)?),
         QueryMsg::TotalDelegated {} => to_binary(&query::total(deps)?),
         QueryMsg::Reward {} => to_binary(&query::reward(deps, &env, None)?),
+        QueryMsg::Claims { sender } => {
+            let sender = deps.api.addr_validate(&sender)?;
+            to_binary(&query::claims(deps, sender)?)
+        }
     }
 }
 
@@ -336,6 +392,10 @@ mod query {
         } else {
             Ok(reward[0].clone())
         }
+    }
+
+    pub fn claims(deps: Deps, sender: Addr) -> StdResult<Vec<ClaimDetails>> {
+        UNBONDING_CLAIMS.load(deps.storage, &sender)
     }
 }
 
