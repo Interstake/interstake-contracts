@@ -111,6 +111,7 @@ mod execute {
         }
 
         CONFIG.save(deps.storage, &config)?;
+
         Ok(Response::new().add_attribute("action", "config_updated"))
     }
 

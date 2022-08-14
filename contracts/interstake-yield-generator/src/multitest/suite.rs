@@ -63,7 +63,7 @@ impl SuiteBuilder {
                 &InstantiateMsg {
                     owner: self.owner.clone(),
                     staking_addr: self.staking_addr.clone(),
-                    team_commision: self.team_commision.clone(),
+                    team_commision: self.team_commision,
                 },
                 &[],
                 "yield_generator",
@@ -75,6 +75,7 @@ impl SuiteBuilder {
             app,
             owner,
             contract: yield_generator_contract,
+            staking: Addr::unchecked(self.staking_addr),
         }
     }
 }
@@ -83,9 +84,18 @@ pub struct Suite {
     app: App,
     owner: Addr,
     contract: Addr,
+    staking: Addr,
 }
 
 impl Suite {
+    pub fn owner(&self) -> Addr {
+        self.owner.clone()
+    }
+
+    pub fn staking(&self) -> Addr {
+        self.staking.clone()
+    }
+
     pub fn update_config(
         &mut self,
         sender: &str,
