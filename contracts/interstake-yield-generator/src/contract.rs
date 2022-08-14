@@ -117,11 +117,6 @@ mod execute {
 
     pub fn delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
-        if config.owner != info.sender {
-            return Err(ContractError::Unauthorized {});
-        }
-
-        let amount = info.funds[0].clone();
 
         let msg = StakingMsg::Delegate {
             validator: config.staking_addr.to_string(),

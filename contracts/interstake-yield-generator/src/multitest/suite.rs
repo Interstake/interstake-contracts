@@ -5,6 +5,9 @@ use std::fmt;
 use cosmwasm_std::{Addr, Coin, Decimal};
 use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 
+use super::validator_mock::{
+    contract as contract_validator_mock, InstantiateMsg as MockInstantiateMsg,
+};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, TeamCommision};
 
@@ -55,6 +58,18 @@ impl SuiteBuilder {
             }
         });
 
+        let validator_mock_id = app.store_code(contract_validator_mock());
+        let validator_mock = app
+            .instantiate_contract(
+                validator_mock_id,
+                owner.clone(),
+                &MockInstantiateMsg {},
+                &[],
+                "validator_mock",
+                None,
+            )
+            .unwrap();
+
         let yield_generator_id = app.store_code(contract_yield_generator());
         let yield_generator_contract = app
             .instantiate_contract(
@@ -62,7 +77,7 @@ impl SuiteBuilder {
                 owner.clone(),
                 &InstantiateMsg {
                     owner: self.owner.clone(),
-                    staking_addr: self.staking_addr.clone(),
+                    staking_addr: validator_mock.to_string(),
                     team_commision: self.team_commision,
                 },
                 &[],
@@ -75,7 +90,7 @@ impl SuiteBuilder {
             app,
             owner,
             contract: yield_generator_contract,
-            staking: Addr::unchecked(self.staking_addr),
+            staking: validator_mock,
         }
     }
 }
@@ -111,6 +126,15 @@ impl Suite {
                 staking_addr: staking_addr.into(),
                 team_commision: team_commision.into(),
             },
+            &[],
+        )
+    }
+
+    pub fn delegate(&mut self, sender: &str, amount: Coin) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::Delegate { amount },
             &[],
         )
     }
