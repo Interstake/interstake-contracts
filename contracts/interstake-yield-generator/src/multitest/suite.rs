@@ -51,7 +51,7 @@ impl SuiteBuilder {
         let funds = self.funds;
         let mut app: App = AppBuilder::new().build(|router, _, storage| {
             for (addr, coin) in funds {
-                router.bank.init_balance(storage, &addr, coin).unwrap();
+                router.staking.init_balance(storage, &addr, coin).unwrap();
             }
         });
 
