@@ -5,7 +5,7 @@ use std::fmt;
 use cosmwasm_std::{Addr, Coin, Decimal};
 use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, TeamCommision};
 
 pub fn contract_yield_generator<C>() -> Box<dyn Contract<C>>
@@ -51,7 +51,7 @@ impl SuiteBuilder {
         let funds = self.funds;
         let mut app: App = AppBuilder::new().build(|router, _, storage| {
             for (addr, coin) in funds {
-                router.staking.init_balance(storage, &addr, coin).unwrap();
+                router.bank.init_balance(storage, &addr, coin).unwrap();
             }
         });
 
@@ -119,7 +119,16 @@ impl Suite {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.contract.clone(),
-            &ExecuteMsg::Delegate { amount },
+            &ExecuteMsg::Delegate {},
+            &[amount],
+        )
+    }
+
+    pub fn restake(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::Restake {},
             &[],
         )
     }
@@ -129,6 +138,16 @@ impl Suite {
             .app
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::Config {})?;
+        Ok(response)
+    }
+
+    pub fn query_delegated(&self, sender: impl Into<String>) -> AnyResult<DelegateResponse> {
+        let response: DelegateResponse = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::Delegated {
+                sender: sender.into(),
+            },
+        )?;
         Ok(response)
     }
 }

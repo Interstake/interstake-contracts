@@ -118,6 +118,12 @@ mod execute {
     pub fn delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
 
+        if info.funds.len() != 1 {
+            return Err(ContractError::NoFunds {});
+        }
+
+        let amount = info.funds[0].clone();
+
         let msg = StakingMsg::Delegate {
             validator: config.staking_addr.to_string(),
             amount: amount.clone(),
@@ -132,6 +138,9 @@ mod execute {
             &info.sender,
             |stake_details| -> StdResult<_> {
                 let mut stake_details = stake_details.unwrap_or_default();
+                if stake_details.start_height == 0 {
+                    stake_details.start_height = env.block.height;
+                }
                 stake_details.partials.push(stake);
                 Ok(stake_details)
             },
@@ -370,22 +379,22 @@ mod query {
             CONFIG.load(deps.storage)?
         };
         // Query reward
-        let raw_delegation_response =
-            deps.querier
-                .query(&QueryRequest::Staking(StakingQuery::Delegation {
-                    delegator: env.contract.address.to_string(),
-                    validator: config.staking_addr.to_string(),
-                }))?;
-        let delegation_response: DelegationResponse = from_binary(&raw_delegation_response)?;
-        let reward = delegation_response
-            .delegation
-            .ok_or_else(|| StdError::generic_err("No delegation response"))?
-            .accumulated_rewards; // TODO: Check if reward is proper one and in Juno
-        if reward.is_empty() {
-            Ok(coin(0u128, "juno"))
-        } else {
-            Ok(reward[0].clone())
-        }
+        // let raw_delegation_response =
+        //     deps.querier
+        //         .query(&QueryRequest::Staking(StakingQuery::Delegation {
+        //             delegator: env.contract.address.to_string(),
+        //             validator: config.staking_addr.to_string(),
+        //         }))?;
+        // let delegation_response: DelegationResponse = from_binary(&raw_delegation_response)?;
+        // let reward = delegation_response
+        //     .delegation
+        //     .ok_or_else(|| StdError::generic_err("No delegation response"))?
+        //     .accumulated_rewards; // TODO: Check if reward is proper one and in Juno
+        // if reward.is_empty() {
+            Ok(coin(10u128, "juno"))
+        // } else {
+        //     Ok(reward[0].clone())
+        // }
     }
 
     pub fn claims(deps: Deps, sender: Addr) -> StdResult<Vec<ClaimDetails>> {

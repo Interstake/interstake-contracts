@@ -20,4 +20,7 @@ pub enum ContractError {
 
     #[error("Restake error - no reward available to restake")]
     RestakeNoReward {},
+
+    #[error("No funds sent to delegate")]
+    NoFunds {},
 }
