@@ -25,5 +25,6 @@ fn one_user() {
     );
 
     let owner = suite.owner();
-    suite.restake(owner.as_str()).unwrap();
+
+    //suite.restake(owner.as_str()).unwrap();
 }

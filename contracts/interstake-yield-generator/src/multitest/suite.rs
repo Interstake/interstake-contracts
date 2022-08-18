@@ -150,4 +150,12 @@ impl Suite {
         )?;
         Ok(response)
     }
+
+    pub fn query_reward(&self) -> AnyResult<Coin> {
+        let response: Coin = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::Reward {})?;
+        Ok(response)
+    }
 }
