@@ -26,7 +26,7 @@ pub enum ExecuteMsg {
         team_commision: Option<TeamCommision>,
     },
     /// Adds amount of tokens to common staking pool
-    Delegate { amount: Coin },
+    Delegate {},
     /// Undelegates currently staked portion of token
     Undelegate { amount: Coin },
     /// Transfers to sender any unbonding claims that met their deadline

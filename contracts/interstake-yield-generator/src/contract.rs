@@ -73,7 +73,7 @@ pub fn execute(
             staking_addr,
             team_commision,
         } => execute::update_config(deps, info, owner, staking_addr, team_commision),
-        ExecuteMsg::Delegate { amount } => execute::delegate(deps, env, info, amount),
+        ExecuteMsg::Delegate {} => execute::delegate(deps, env, info),
         ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
         ExecuteMsg::Claim {} => execute::claim(deps, env, info),
         ExecuteMsg::Restake {} => execute::restake(deps, env, info),
@@ -110,19 +110,17 @@ mod execute {
             config.team_commision = team_commision;
         }
 
+        CONFIG.save(deps.storage, &config)?;
         Ok(Response::new().add_attribute("action", "config_updated"))
     }
 
-    pub fn delegate(
-        deps: DepsMut,
-        env: Env,
-        info: MessageInfo,
-        amount: Coin,
-    ) -> Result<Response, ContractError> {
+    pub fn delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
         if config.owner != info.sender {
             return Err(ContractError::Unauthorized {});
         }
+
+        let amount = info.funds[0].clone();
 
         let msg = StakingMsg::Delegate {
             validator: config.staking_addr.to_string(),
