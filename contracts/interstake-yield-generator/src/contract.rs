@@ -302,12 +302,14 @@ mod execute {
 
         // Second, iterate over those weights, calculate ratio weight/sum_of_weights and multiply that
         // by reward
+        let mut sum_of_rewards = Uint128::zero();
         addr_and_weight
             .into_iter()
             .try_for_each::<_, StdResult<()>>(|(addr, weight)| {
                 // Weight ratio of that one particular stake
                 // Knowing total sum of all weights, multiply reward by ratio.
                 let stakes_reward = weight / sum_of_weights * reward.amount; // TODO: Modify that by checking properly denom; later
+                sum_of_rewards += stakes_reward;
                 if let Some(stake_detail) = stakes.get_mut(&addr) {
                     (*stake_detail).earnings += stakes_reward;
                     (*stake_detail).total.amount += stakes_reward;
@@ -326,7 +328,7 @@ mod execute {
 
         // Update total amount of staked tokens with latest reward
         TOTAL.update(deps.storage, |total| -> StdResult<_> {
-            Ok(coin((total.amount + reward.amount).u128(), total.denom))
+            Ok(coin((total.amount + sum_of_rewards).u128(), total.denom))
         })?;
 
         Ok(Response::new()
