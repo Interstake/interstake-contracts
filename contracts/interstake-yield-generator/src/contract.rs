@@ -214,10 +214,20 @@ mod execute {
     pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
         let mut claims = query::claims(deps.as_ref(), info.sender.clone())?;
 
+        let mut unmet_claims = vec![];
+
         let amounts = claims
             .clone()
             .into_iter()
-            .filter(|claim| claim.release_timestamp > env.block.time)
+            .filter(|claim| {
+                // if claim release is still not met
+                if claim.release_timestamp > env.block.time {
+                    unmet_claims.push(claim.clone());
+                    false
+                } else {
+                    true
+                }
+            })
             .enumerate()
             .map(|(index, _)| Ok(claims.remove(index)))
             .map(|claim: StdResult<ClaimDetails>| {
@@ -226,12 +236,7 @@ mod execute {
             })
             .collect::<StdResult<Vec<Coin>>>()?;
 
-        UNBONDING_CLAIMS.save(deps.storage, &info.sender, &amounts)?;
-
-        let msg = BankMsg::Send {
-            to_address: info.sender.to_string(),
-            amount: amounts.clone(),
-        };
+        UNBONDING_CLAIMS.save(deps.storage, &info.sender, &unmet_claims)?;
 
         let mut response = Response::new()
             .add_attribute("action", "claim_unbonded_tokens")
@@ -243,8 +248,14 @@ mod execute {
                 .clone()
                 .add_attribute("denom", amount.denom.clone());
         });
-        response = response.add_message(msg);
 
+        if !amounts.is_empty() {
+            let msg = BankMsg::Send {
+                to_address: info.sender.to_string(),
+                amount: amounts,
+            };
+            response = response.add_message(msg);
+        }
         Ok(response)
     }
 
