@@ -226,6 +226,8 @@ mod execute {
             })
             .collect::<StdResult<Vec<Coin>>>()?;
 
+        UNBONDING_CLAIMS.save(deps.storage, &info.sender, &amounts)?;
+
         let msg = BankMsg::Send {
             to_address: info.sender.to_string(),
             amount: amounts.clone(),

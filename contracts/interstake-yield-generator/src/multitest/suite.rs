@@ -152,6 +152,15 @@ impl Suite {
         )
     }
 
+    pub fn claim(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::Claim {},
+            &[],
+        )
+    }
+
     pub fn query_config(&self) -> AnyResult<Config> {
         let response: Config = self
             .app
