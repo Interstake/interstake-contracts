@@ -29,4 +29,7 @@ pub enum ContractError {
         "Not enough fully delegated tokens to undelegate; you wanted: {wanted}, you have: {have}"
     )]
     NotEnoughToUndelegate { wanted: Uint128, have: Uint128 },
+
+    #[error("Delegation not found")]
+    DelegationNotFound {},
 }

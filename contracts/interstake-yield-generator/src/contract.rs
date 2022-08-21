@@ -21,7 +21,7 @@ use std::collections::HashMap;
 const CONTRACT_NAME: &str = "crates.io:interstake-yield-generator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const TWENTY_EIGHT_DAYS_SECONDS: u64 = 3600 * 24 * 28;
+pub const TWENTY_EIGHT_DAYS_SECONDS: u64 = 3600 * 24 * 28;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -166,7 +166,10 @@ mod execute {
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
 
-        let mut stake_details = STAKE_DETAILS.load(deps.storage, &info.sender)?;
+        let mut stake_details = STAKE_DETAILS
+            .load(deps.storage, &info.sender)
+            .map_err(|_| ContractError::DelegationNotFound {})?;
+
         stake_details.consolidate_partials(deps.storage)?;
         stake_details.total.amount = stake_details
             .total
@@ -197,6 +200,8 @@ mod execute {
             });
             Ok(vec_claims)
         })?;
+
+        STAKE_DETAILS.save(deps.storage, &info.sender, &stake_details)?;
 
         Ok(Response::new()
             .add_attribute("action", "undelegate")

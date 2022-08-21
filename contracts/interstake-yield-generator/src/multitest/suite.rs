@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, BlockInfo, Coin, Decimal};
 use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 
 use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TotalDelegatedResponse};
-use crate::state::{Config, TeamCommision};
+use crate::state::{ClaimDetails, Config, TeamCommision};
 
 pub fn contract_yield_generator<C>() -> Box<dyn Contract<C>>
 where
@@ -134,6 +134,15 @@ impl Suite {
         )
     }
 
+    pub fn undelegate(&mut self, sender: &str, amount: Coin) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::Undelegate { amount },
+            &[],
+        )
+    }
+
     pub fn restake(&mut self, sender: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -182,6 +191,16 @@ impl Suite {
             .app
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::LastPaymentBlock {})?;
+        Ok(response)
+    }
+
+    pub fn query_claims(&self, sender: impl Into<String>) -> AnyResult<Vec<ClaimDetails>> {
+        let response: Vec<ClaimDetails> = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::Claims {
+                sender: sender.into(),
+            },
+        )?;
         Ok(response)
     }
 }
