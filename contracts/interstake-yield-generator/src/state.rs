@@ -15,8 +15,9 @@ pub enum TeamCommision {
 #[serde(rename_all = "snake_case")]
 pub struct Config {
     pub owner: Addr,
-    pub staking_addr: Addr,
+    pub staking_addr: String,
     pub team_commision: TeamCommision,
+    pub denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -61,7 +62,7 @@ pub struct ClaimDetails {
 pub const CONFIG: Item<Config> = Item::new("config");
 // Total amount of staked tokens
 // TODO: Replace with Vec<Coin>
-pub const TOTAL: Item<Uint128> = Item::new("total");
+pub const TOTAL: Item<Coin> = Item::new("total");
 pub const LAST_PAYMENT_BLOCK: Item<u64> = Item::new("last_payment_block");
 pub const STAKE_DETAILS: Map<&Addr, StakeDetails> = Map::new("stake_details");
 pub const UNBONDING_CLAIMS: Map<&Addr, Vec<ClaimDetails>> = Map::new("unbonding_claims");

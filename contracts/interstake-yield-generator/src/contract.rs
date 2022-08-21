@@ -1,14 +1,16 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, DelegationResponse, Deps,
-    DepsMut, DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg,
-    StakingQuery, StdError, StdResult, Uint128,
+    coin, to_binary, Addr, BankMsg, Binary, Coin, Decimal, DelegationResponse, Deps, DepsMut,
+    DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StakingQuery,
+    StdResult, Uint128,
 };
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::msg::{
+    DelegateResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, TotalDelegatedResponse,
+};
 use crate::state::{
     ClaimDetails, Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK,
     STAKE_DETAILS, TOTAL, UNBONDING_CLAIMS,
@@ -31,7 +33,6 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let owner = deps.api.addr_validate(&msg.owner)?;
-    let staking_addr = deps.api.addr_validate(&msg.staking_addr)?;
 
     let team_commision = if let Some(commision) = msg.team_commision {
         TeamCommision::Some(commision)
@@ -41,19 +42,20 @@ pub fn instantiate(
 
     let config = Config {
         owner: owner.clone(),
-        staking_addr: staking_addr.clone(),
+        staking_addr: msg.staking_addr.clone(),
         team_commision,
+        denom: msg.denom.clone(),
     };
     CONFIG.save(deps.storage, &config)?;
 
     // Initialize last payment block
     LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
-    TOTAL.save(deps.storage, &Uint128::zero())?;
+    TOTAL.save(deps.storage, &coin(0u128, &msg.denom))?;
 
     Ok(Response::new()
         .add_attribute("action", "instantiate")
         .add_attribute("owner", owner.into_string())
-        .add_attribute("staking_addr", staking_addr.into_string())
+        .add_attribute("staking_addr", &msg.staking_addr)
         .add_attribute(
             "team_commision",
             msg.team_commision.unwrap_or_default().to_string(),
@@ -102,7 +104,6 @@ mod execute {
         }
 
         if let Some(staking_addr) = new_staking_addr {
-            let staking_addr = deps.api.addr_validate(&staking_addr)?;
             config.staking_addr = staking_addr;
         }
 
@@ -111,7 +112,6 @@ mod execute {
         }
 
         CONFIG.save(deps.storage, &config)?;
-
         Ok(Response::new().add_attribute("action", "config_updated"))
     }
 
@@ -147,12 +147,12 @@ mod execute {
         )?;
 
         TOTAL.update(deps.storage, |total| -> StdResult<_> {
-            Ok(total + amount.amount)
+            Ok(coin((total.amount + amount.amount).u128(), total.denom))
         })?;
 
         Ok(Response::new()
             .add_attribute("action", "delegate")
-            .add_attribute("validator", config.staking_addr.to_string())
+            .add_attribute("validator", &config.staking_addr)
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_message(msg))
@@ -176,7 +176,7 @@ mod execute {
         };
 
         TOTAL.update(deps.storage, |total| -> StdResult<_> {
-            Ok(total - amount.amount)
+            Ok(coin((total.amount - amount.amount).u128(), total.denom))
         })?;
 
         // Unbonding will result in coins going back to contract.
@@ -193,7 +193,7 @@ mod execute {
 
         Ok(Response::new()
             .add_attribute("action", "undelegate")
-            .add_attribute("validator", config.staking_addr.to_string())
+            .add_attribute("validator", &config.staking_addr)
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_message(msg))
@@ -299,17 +299,23 @@ mod execute {
             });
         });
 
-        addr_and_weight.into_iter().for_each(|(addr, weight)| {
-            // Weight of that one particular stake
-            let stakes_reward = weight * reward.amount; // TODO: Modify that by checking properly denom; later
-            if let Some(stake_detail) = stakes.get_mut(&addr) {
-                (*stake_detail).earnings += stakes_reward;
-                (*stake_detail).total.amount += stakes_reward;
-            }
-        });
+        addr_and_weight
+            .into_iter()
+            .map(|(addr, weight)| {
+                // Weight of that one particular stake
+                // Knowing total sum of all weights, multiply reward by ratio.
+                let stakes_reward = weight / sum_of_weights * reward.amount; // TODO: Modify that by checking properly denom; later
+                if let Some(stake_detail) = stakes.get_mut(&addr) {
+                    (*stake_detail).earnings += stakes_reward;
+                    (*stake_detail).total.amount += stakes_reward;
+                    STAKE_DETAILS.save(deps.storage, &addr, stake_detail)?;
+                }
+                Ok(())
+            })
+            .collect::<StdResult<()>>()?;
 
         let delegate_msg = StakingMsg::Delegate {
-            validator: config.staking_addr.into(),
+            validator: config.staking_addr,
             amount: reward.clone(),
         };
 
@@ -318,8 +324,10 @@ mod execute {
 
         // Update total amount of staked tokens with latest reward
         TOTAL.update(deps.storage, |total| -> StdResult<_> {
-            Ok(total + reward.amount)
+            Ok(coin((total.amount + reward.amount).u128(), total.denom))
         })?;
+
+        // STAKE_DETAILS.save(deps.storage, stakes)?;
 
         Ok(Response::new()
             .add_attribute("action", "restake")
@@ -368,11 +376,17 @@ mod query {
         })
     }
 
-    pub fn total(deps: Deps) -> StdResult<Uint128> {
-        TOTAL.load(deps.storage)
+    pub fn total(deps: Deps) -> StdResult<TotalDelegatedResponse> {
+        Ok(TotalDelegatedResponse {
+            amount: TOTAL.load(deps.storage)?,
+        })
     }
 
-    pub fn reward(deps: Deps, env: &Env, config: impl Into<Option<Config>>) -> StdResult<Option<Coin>> {
+    pub fn reward(
+        deps: Deps,
+        env: &Env,
+        config: impl Into<Option<Config>>,
+    ) -> StdResult<Option<Coin>> {
         let config = if let Some(config) = config.into() {
             config
         } else {
@@ -380,12 +394,11 @@ mod query {
         };
 
         // Query reward
-        let delegation_response: cosmwasm_std::DelegationResponse =
-            deps
-                .querier
+        let delegation_response: DelegationResponse =
+            deps.querier
                 .query(&QueryRequest::Staking(StakingQuery::Delegation {
                     delegator: env.contract.address.to_string(),
-                    validator: config.staking_addr.to_string(),
+                    validator: config.staking_addr,
                 }))?;
         let delegation = if let Some(delegation) = delegation_response.delegation {
             delegation
@@ -393,8 +406,7 @@ mod query {
             return Ok(None);
         };
 
-        let reward = delegation
-            .accumulated_rewards; // TODO: Check if reward is proper one and in Juno
+        let reward = delegation.accumulated_rewards; // TODO: Check if reward is proper one and in Juno
         if reward.is_empty() {
             Ok(None)
         } else {

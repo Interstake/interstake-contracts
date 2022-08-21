@@ -14,6 +14,8 @@ pub struct InstantiateMsg {
     pub staking_addr: String,
     /// Commission of Intrastake team
     pub team_commision: Option<Decimal>,
+    /// Used denom
+    pub denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

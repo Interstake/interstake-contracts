@@ -5,7 +5,7 @@ use std::fmt;
 use cosmwasm_std::{Addr, Coin, Decimal};
 use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 
-use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TotalDelegatedResponse};
 use crate::state::{Config, TeamCommision};
 
 pub fn contract_yield_generator<C>() -> Box<dyn Contract<C>>
@@ -26,6 +26,7 @@ pub struct SuiteBuilder {
     pub staking_addr: String,
     pub team_commision: Option<Decimal>,
     pub funds: Vec<(Addr, Vec<Coin>)>,
+    pub denom: String,
 }
 
 impl SuiteBuilder {
@@ -35,6 +36,7 @@ impl SuiteBuilder {
             staking_addr: "staking".to_owned(),
             team_commision: None,
             funds: vec![],
+            denom: "juno".to_owned(),
         }
     }
 
@@ -64,6 +66,7 @@ impl SuiteBuilder {
                     owner: self.owner.clone(),
                     staking_addr: self.staking_addr.to_string(),
                     team_commision: self.team_commision,
+                    denom: self.denom,
                 },
                 &[],
                 "yield_generator",
@@ -75,7 +78,7 @@ impl SuiteBuilder {
             app,
             owner,
             contract: yield_generator_contract,
-            staking: Addr::unchecked(self.staking_addr),
+            staking: self.staking_addr,
         }
     }
 }
@@ -84,7 +87,7 @@ pub struct Suite {
     pub app: App,
     owner: Addr,
     contract: Addr,
-    staking: Addr,
+    staking: String,
 }
 
 impl Suite {
@@ -92,7 +95,7 @@ impl Suite {
         self.owner.clone()
     }
 
-    pub fn staking(&self) -> Addr {
+    pub fn staking(&self) -> String {
         self.staking.clone()
     }
 
@@ -148,6 +151,14 @@ impl Suite {
                 sender: sender.into(),
             },
         )?;
+        Ok(response)
+    }
+
+    pub fn query_total_delegated(&self) -> AnyResult<TotalDelegatedResponse> {
+        let response: TotalDelegatedResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::TotalDelegated {})?;
         Ok(response)
     }
 
