@@ -26,4 +26,4 @@ thiserror = "1"
 
 [dev-dependencies]
 anyhow = "1"
-cw-multi-test = "0.16"
+cw-multi-test = { version = "0.16", features = ["backtrace"] }
