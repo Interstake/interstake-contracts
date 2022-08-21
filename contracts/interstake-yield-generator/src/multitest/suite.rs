@@ -2,7 +2,7 @@ use anyhow::Result as AnyResult;
 use schemars::JsonSchema;
 use std::fmt;
 
-use cosmwasm_std::{Addr, Coin, Decimal};
+use cosmwasm_std::{Addr, BlockInfo, Coin, Decimal};
 use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 
 use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TotalDelegatedResponse};
@@ -99,6 +99,13 @@ impl Suite {
         self.staking.clone()
     }
 
+    pub fn advance_height(&mut self, advance: u64) {
+        self.app.update_block(|block: &mut BlockInfo| {
+            block.time = block.time.plus_seconds(5 * advance);
+            block.height += advance
+        })
+    }
+
     pub fn update_config(
         &mut self,
         sender: &str,
@@ -167,6 +174,14 @@ impl Suite {
             .app
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::Reward {})?;
+        Ok(response)
+    }
+
+    pub fn query_last_payment_block(&self) -> AnyResult<u64> {
+        let response: u64 = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::LastPaymentBlock {})?;
         Ok(response)
     }
 }
