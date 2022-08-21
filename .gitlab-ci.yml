@@ -6,6 +6,7 @@ stages:
 
 contract_interstake_yield_generator:
   stage: test
+  needs: []
   script:
   - cd contracts/interstake-yield-generator
   - rustc --version; cargo --version; rustup --version
@@ -14,6 +15,7 @@ contract_interstake_yield_generator:
 
 package_utils:
   stage: test
+  needs: []
   script:
   - cd packages/utils
   - rustc --version; cargo --version; rustup --version; rustup target list --installed
@@ -22,6 +24,7 @@ package_utils:
 
 coverage:
   stage: test
+  needs: []
   script:
   - rustup override set nightly
   - cargo install cargo-tarpaulin
