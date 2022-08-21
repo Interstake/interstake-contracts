@@ -52,6 +52,8 @@ pub enum QueryMsg {
     Reward {},
     /// Returns all current unbonding claims for sender
     Claims { sender: String },
+    /// Last payment block height
+    LastPaymentBlock {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

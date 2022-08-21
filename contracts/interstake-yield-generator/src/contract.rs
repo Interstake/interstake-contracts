@@ -350,6 +350,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let sender = deps.api.addr_validate(&sender)?;
             to_binary(&query::claims(deps, sender)?)
         }
+        QueryMsg::LastPaymentBlock {} => to_binary(&LAST_PAYMENT_BLOCK.load(deps.storage)?),
     }
 }
 
