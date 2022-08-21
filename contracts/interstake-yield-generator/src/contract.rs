@@ -274,6 +274,7 @@ mod execute {
         // Sum of all weights to calculate reward
         let mut sum_of_weights = Decimal::zero();
 
+        // First, iterates over all stakes, calculates the weights and accumulate total sum of weights
         stakes.iter().for_each(|(addr, stake_detail)| {
             // Add total staked weight 1.0 * stake
             let weight = Decimal::from_ratio(stake_detail.total.amount, Uint128::new(1u128));
@@ -299,10 +300,12 @@ mod execute {
             });
         });
 
+        // Second, iterate over those weights, calculate ratio weight/sum_of_weights and multiply that
+        // by reward
         addr_and_weight
             .into_iter()
-            .map(|(addr, weight)| {
-                // Weight of that one particular stake
+            .try_for_each::<_, StdResult<()>>(|(addr, weight)| {
+                // Weight ratio of that one particular stake
                 // Knowing total sum of all weights, multiply reward by ratio.
                 let stakes_reward = weight / sum_of_weights * reward.amount; // TODO: Modify that by checking properly denom; later
                 if let Some(stake_detail) = stakes.get_mut(&addr) {
@@ -311,8 +314,7 @@ mod execute {
                     STAKE_DETAILS.save(deps.storage, &addr, stake_detail)?;
                 }
                 Ok(())
-            })
-            .collect::<StdResult<()>>()?;
+            })?;
 
         let delegate_msg = StakingMsg::Delegate {
             validator: config.staking_addr,
