@@ -20,6 +20,13 @@ package_utils:
   - cargo build --locked
   - cargo test --locked\
 
+coverage:
+  stage: test
+  script:
+  - rustup override set nightly
+  - cargo install cargo-tarpaulin
+  - cargo tarpaulin -v --all-features --force-clean --offline
+
 lint:
   stage: build
   script:
