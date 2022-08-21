@@ -2,7 +2,16 @@ use super::suite::SuiteBuilder;
 
 use cosmwasm_std::{coin, coins, Uint128};
 
+use crate::error::ContractError;
 use crate::msg::{DelegateResponse, TotalDelegatedResponse};
+
+#[test]
+fn restake_not_authorized() {
+    let mut suite = SuiteBuilder::new().build();
+
+    let err = suite.restake("random_user").unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+}
 
 #[test]
 fn one_user() {
