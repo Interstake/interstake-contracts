@@ -168,7 +168,14 @@ mod execute {
 
         let mut stake_details = STAKE_DETAILS.load(deps.storage, &info.sender)?;
         stake_details.consolidate_partials(deps.storage)?;
-        stake_details.total.amount = stake_details.total.amount.checked_sub(amount.amount)?;
+        stake_details.total.amount = stake_details
+            .total
+            .amount
+            .checked_sub(amount.amount)
+            .map_err(|_| ContractError::NotEnoughToUndelegate {
+                wanted: amount.amount,
+                have: stake_details.total.amount,
+            })?;
 
         let msg = StakingMsg::Undelegate {
             validator: config.staking_addr.to_string(),

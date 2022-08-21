@@ -1,5 +1,6 @@
-use cosmwasm_std::StdError;
 use thiserror::Error;
+
+use cosmwasm_std::{StdError, Uint128};
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
@@ -23,4 +24,9 @@ pub enum ContractError {
 
     #[error("No funds sent to delegate")]
     NoFunds {},
+
+    #[error(
+        "Not enough fully delegated tokens to undelegate; you wanted: {wanted}, you have: {have}"
+    )]
+    NotEnoughToUndelegate { wanted: Uint128, have: Uint128 },
 }
