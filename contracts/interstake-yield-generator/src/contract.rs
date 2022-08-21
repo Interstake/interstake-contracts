@@ -21,7 +21,7 @@ use std::collections::HashMap;
 const CONTRACT_NAME: &str = "crates.io:interstake-yield-generator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const TWENTY_EIGHT_DAYS_SECONDS: u64 = 3600 * 24 * 28;
+pub const TWENTY_EIGHT_DAYS_SECONDS: u64 = 3600 * 24 * 28;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -166,9 +166,19 @@ mod execute {
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
 
-        let mut stake_details = STAKE_DETAILS.load(deps.storage, &info.sender)?;
+        let mut stake_details = STAKE_DETAILS
+            .load(deps.storage, &info.sender)
+            .map_err(|_| ContractError::DelegationNotFound {})?;
+
         stake_details.consolidate_partials(deps.storage)?;
-        stake_details.total.amount = stake_details.total.amount.checked_sub(amount.amount)?;
+        stake_details.total.amount = stake_details
+            .total
+            .amount
+            .checked_sub(amount.amount)
+            .map_err(|_| ContractError::NotEnoughToUndelegate {
+                wanted: amount.amount,
+                have: stake_details.total.amount,
+            })?;
 
         let msg = StakingMsg::Undelegate {
             validator: config.staking_addr.to_string(),
@@ -191,6 +201,8 @@ mod execute {
             Ok(vec_claims)
         })?;
 
+        STAKE_DETAILS.save(deps.storage, &info.sender, &stake_details)?;
+
         Ok(Response::new()
             .add_attribute("action", "undelegate")
             .add_attribute("validator", &config.staking_addr)
@@ -202,10 +214,20 @@ mod execute {
     pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
         let mut claims = query::claims(deps.as_ref(), info.sender.clone())?;
 
+        let mut unmet_claims = vec![];
+
         let amounts = claims
             .clone()
             .into_iter()
-            .filter(|claim| claim.release_timestamp > env.block.time)
+            .filter(|claim| {
+                // if claim release is still not met
+                if claim.release_timestamp > env.block.time {
+                    unmet_claims.push(claim.clone());
+                    false
+                } else {
+                    true
+                }
+            })
             .enumerate()
             .map(|(index, _)| Ok(claims.remove(index)))
             .map(|claim: StdResult<ClaimDetails>| {
@@ -214,10 +236,7 @@ mod execute {
             })
             .collect::<StdResult<Vec<Coin>>>()?;
 
-        let msg = BankMsg::Send {
-            to_address: info.sender.to_string(),
-            amount: amounts.clone(),
-        };
+        UNBONDING_CLAIMS.save(deps.storage, &info.sender, &unmet_claims)?;
 
         let mut response = Response::new()
             .add_attribute("action", "claim_unbonded_tokens")
@@ -229,8 +248,14 @@ mod execute {
                 .clone()
                 .add_attribute("denom", amount.denom.clone());
         });
-        response = response.add_message(msg);
 
+        if !amounts.is_empty() {
+            let msg = BankMsg::Send {
+                to_address: info.sender.to_string(),
+                amount: amounts,
+            };
+            response = response.add_message(msg);
+        }
         Ok(response)
     }
 

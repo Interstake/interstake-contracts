@@ -2,11 +2,11 @@ use anyhow::Result as AnyResult;
 use schemars::JsonSchema;
 use std::fmt;
 
-use cosmwasm_std::{Addr, BlockInfo, Coin, Decimal};
+use cosmwasm_std::{coin, Addr, BlockInfo, Coin, Decimal};
 use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 
 use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TotalDelegatedResponse};
-use crate::state::{Config, TeamCommision};
+use crate::state::{ClaimDetails, Config, TeamCommision};
 
 pub fn contract_yield_generator<C>() -> Box<dyn Contract<C>>
 where
@@ -55,6 +55,17 @@ impl SuiteBuilder {
             for (addr, coin) in funds {
                 router.bank.init_balance(storage, &addr, coin).unwrap();
             }
+            // FIXME: Dirty hack - prepare some tokens for contract to send back in undelegate scenarios
+            // Proper solutions needs to be supplied in multi-test staking module
+            // https://github.com/CosmWasm/cw-plus/pull/782
+            router
+                .bank
+                .init_balance(
+                    storage,
+                    &Addr::unchecked("contract0"),
+                    vec![coin(1000, "juno")],
+                )
+                .unwrap();
         });
 
         let yield_generator_id = app.store_code(contract_yield_generator());
@@ -99,10 +110,17 @@ impl Suite {
         self.staking.clone()
     }
 
-    pub fn advance_height(&mut self, advance: u64) {
+    pub fn advance_height(&mut self, blocks: u64) {
         self.app.update_block(|block: &mut BlockInfo| {
-            block.time = block.time.plus_seconds(5 * advance);
-            block.height += advance
+            block.time = block.time.plus_seconds(5 * blocks);
+            block.height += blocks;
+        })
+    }
+
+    pub fn advance_time(&mut self, time: u64) {
+        self.app.update_block(|block: &mut BlockInfo| {
+            block.time = block.time.plus_seconds(time);
+            block.height += time / 5;
         })
     }
 
@@ -134,11 +152,29 @@ impl Suite {
         )
     }
 
+    pub fn undelegate(&mut self, sender: &str, amount: Coin) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::Undelegate { amount },
+            &[],
+        )
+    }
+
     pub fn restake(&mut self, sender: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.contract.clone(),
             &ExecuteMsg::Restake {},
+            &[],
+        )
+    }
+
+    pub fn claim(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::Claim {},
             &[],
         )
     }
@@ -182,6 +218,16 @@ impl Suite {
             .app
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::LastPaymentBlock {})?;
+        Ok(response)
+    }
+
+    pub fn query_claims(&self, sender: impl Into<String>) -> AnyResult<Vec<ClaimDetails>> {
+        let response: Vec<ClaimDetails> = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::Claims {
+                sender: sender.into(),
+            },
+        )?;
         Ok(response)
     }
 }
