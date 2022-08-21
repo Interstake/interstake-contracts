@@ -34,4 +34,7 @@ thiserror = "1.0"
 anyhow = "1"
 cosmwasm-schema = "1.0.0"
 # cw-multi-test = "0.14"
-cw-multi-test = { version = "0.14", path = "../../../../../cw-plus/packages/multi-test" }
+## Use custom version of multi-test module that implements Staking and Distribution modules,
+## required to test delegation and withdraw_reward
+## https://github.com/CosmWasm/cw-plus/pull/782
+cw-multi-test = { git = "https://github.com/CosmWasm/cw-plus", rev = "33bb3c76dd187d84cea400917e507e37b281598a" }

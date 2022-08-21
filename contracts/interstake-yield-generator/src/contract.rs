@@ -329,8 +329,6 @@ mod execute {
             Ok(coin((total.amount + reward.amount).u128(), total.denom))
         })?;
 
-        // STAKE_DETAILS.save(deps.storage, stakes)?;
-
         Ok(Response::new()
             .add_attribute("action", "restake")
             .add_attribute("amount", reward.amount)

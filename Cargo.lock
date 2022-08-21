@@ -171,27 +171,19 @@ dependencies = [
 [[package]]
 name = "cw-multi-test"
 version = "0.14.0"
+source = "git+https://github.com/CosmWasm/cw-plus?rev=33bb3c76dd187d84cea400917e507e37b281598a#33bb3c76dd187d84cea400917e507e37b281598a"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus 0.14.0",
- "cw-utils 0.14.0",
+ "cw-storage-plus 0.14.0 (git+https://github.com/CosmWasm/cw-plus?rev=33bb3c76dd187d84cea400917e507e37b281598a)",
+ "cw-utils 0.14.0 (git+https://github.com/CosmWasm/cw-plus?rev=33bb3c76dd187d84cea400917e507e37b281598a)",
  "derivative",
  "itertools",
  "prost",
  "schemars",
  "serde",
  "thiserror",
-]
-
-[[package]]
-name = "cw-storage-plus"
-version = "0.14.0"
-dependencies = [
- "cosmwasm-std",
- "schemars",
- "serde",
 ]
 
 [[package]]
@@ -206,15 +198,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw-utils"
+name = "cw-storage-plus"
 version = "0.14.0"
+source = "git+https://github.com/CosmWasm/cw-plus?rev=33bb3c76dd187d84cea400917e507e37b281598a#33bb3c76dd187d84cea400917e507e37b281598a"
 dependencies = [
  "cosmwasm-std",
- "cw2 0.14.0",
  "schemars",
- "semver",
  "serde",
- "thiserror",
 ]
 
 [[package]]
@@ -232,13 +222,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw2"
+name = "cw-utils"
 version = "0.14.0"
+source = "git+https://github.com/CosmWasm/cw-plus?rev=33bb3c76dd187d84cea400917e507e37b281598a#33bb3c76dd187d84cea400917e507e37b281598a"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus 0.14.0",
+ "cw2 0.14.0 (git+https://github.com/CosmWasm/cw-plus?rev=33bb3c76dd187d84cea400917e507e37b281598a)",
  "schemars",
+ "semver",
  "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -249,6 +242,17 @@ checksum = "aa74c324af8e3506fd8d50759a265bead3f87402e413c840042af5d2808463d6"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "schemars",
+ "serde",
+]
+
+[[package]]
+name = "cw2"
+version = "0.14.0"
+source = "git+https://github.com/CosmWasm/cw-plus?rev=33bb3c76dd187d84cea400917e507e37b281598a#33bb3c76dd187d84cea400917e507e37b281598a"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus 0.14.0 (git+https://github.com/CosmWasm/cw-plus?rev=33bb3c76dd187d84cea400917e507e37b281598a)",
  "schemars",
  "serde",
 ]
