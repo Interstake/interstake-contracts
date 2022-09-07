@@ -386,10 +386,14 @@ mod query {
         CONFIG.load(deps.storage)
     }
 
-    pub fn delegated(deps: Deps, sender: String) -> StdResult<DelegateResponse> {
+    pub fn delegated(deps: Deps, sender: String) -> StdResult<Option<DelegateResponse>> {
         let sender_addr = deps.api.addr_validate(&sender)?;
 
-        let delegated = STAKE_DETAILS.load(deps.storage, &sender_addr)?;
+        let delegated = if let Some(details) = STAKE_DETAILS.may_load(deps.storage, &sender_addr)? {
+            details
+        } else {
+            return Ok(None);
+        };
         let partial_stakes: Uint128 = delegated
             .partials
             .iter()
@@ -397,11 +401,11 @@ mod query {
             .sum();
         let total_staked = delegated.total.amount + partial_stakes;
 
-        Ok(DelegateResponse {
+        Ok(Some(DelegateResponse {
             start_height: delegated.start_height,
             total_staked,
             total_earnings: delegated.earnings,
-        })
+        }))
     }
 
     pub fn total(deps: Deps) -> StdResult<TotalDelegatedResponse> {
