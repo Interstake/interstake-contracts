@@ -454,6 +454,16 @@ mod query {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let stored_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    if stored_version <= "0.1.1".parse().unwrap() {
+        let config = Config {
+            owner: Addr::unchecked("juno1dk9zr2tzh6r4cruylvxjwtvx0n4cglsxsnxtcs".to_owned()),
+            staking_addr: "junovaloper1ux8jlqv257gsfmpl067av8gy3pu396j8n4u6w3".to_owned(),
+            team_commision: TeamCommision::None,
+            denom: "ujunox".to_owned(),
+        };
+        CONFIG.save(deps.storage, &config)?;
+    }
     Ok(Response::new())
 }
