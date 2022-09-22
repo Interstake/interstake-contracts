@@ -10,7 +10,8 @@ use cw_utils::ensure_from_older_version;
 
 use crate::error::ContractError;
 use crate::msg::{
-    DelegateResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, TotalDelegatedResponse,
+    ClaimsResponse, ConfigResponse, DelegateResponse, ExecuteMsg, InstantiateMsg,
+    LastPaymentBlockResponse, MigrateMsg, QueryMsg, RewardResponse, TotalDelegatedResponse,
 };
 use crate::state::{
     ClaimDetails, Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK,
@@ -213,7 +214,7 @@ mod execute {
     }
 
     pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-        let mut claims = query::claims(deps.as_ref(), info.sender.clone())?;
+        let mut claims = query::claims(deps.as_ref(), info.sender.clone())?.claims;
 
         let mut unmet_claims = vec![];
 
@@ -271,10 +272,11 @@ mod execute {
             .collect::<StdResult<HashMap<Addr, StakeDetails>>>()?;
 
         let config = CONFIG.load(deps.storage)?;
-        let reward = query::reward(deps.as_ref(), &env, config.clone())?.unwrap_or_default();
-        if reward.amount == Uint128::zero() {
-            return Err(ContractError::RestakeNoReward {});
+        let reward = query::reward(deps.as_ref(), &env, config.clone())?.rewards;
+        if reward.len() != 1 || reward[0].amount == Uint128::zero() {
+            return Ok(Response::new());
         }
+        let reward = reward[0].clone();
 
         // Decrease reward of team_commision
         let reward = match config.team_commision {
@@ -372,15 +374,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let sender = deps.api.addr_validate(&sender)?;
             to_binary(&query::claims(deps, sender)?)
         }
-        QueryMsg::LastPaymentBlock {} => to_binary(&LAST_PAYMENT_BLOCK.load(deps.storage)?),
+        QueryMsg::LastPaymentBlock {} => to_binary(&query::last_payment_block(deps)?),
     }
 }
 
 mod query {
     use super::*;
 
-    pub fn config(deps: Deps) -> StdResult<Config> {
-        CONFIG.load(deps.storage)
+    pub fn config(deps: Deps) -> StdResult<ConfigResponse> {
+        Ok(ConfigResponse {
+            config: CONFIG.load(deps.storage)?,
+        })
     }
 
     pub fn delegated(deps: Deps, sender: String) -> StdResult<Option<DelegateResponse>> {
@@ -415,12 +419,14 @@ mod query {
         deps: Deps,
         env: &Env,
         config: impl Into<Option<Config>>,
-    ) -> StdResult<Option<Coin>> {
+    ) -> StdResult<RewardResponse> {
         let config = if let Some(config) = config.into() {
             config
         } else {
             CONFIG.load(deps.storage)?
         };
+
+        let mut reward_response = RewardResponse { rewards: vec![] };
 
         // Query reward
         let delegation_response: DelegationResponse =
@@ -432,19 +438,24 @@ mod query {
         let delegation = if let Some(delegation) = delegation_response.delegation {
             delegation
         } else {
-            return Ok(None);
+            return Ok(reward_response);
         };
 
-        let reward = delegation.accumulated_rewards; // TODO: Check if reward is proper one and in Juno
-        if reward.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(reward[0].clone()))
-        }
+        reward_response.rewards = delegation.accumulated_rewards; // TODO: Check if reward is proper one and in Juno
+        Ok(reward_response)
     }
 
-    pub fn claims(deps: Deps, sender: Addr) -> StdResult<Vec<ClaimDetails>> {
-        UNBONDING_CLAIMS.load(deps.storage, &sender)
+    pub fn claims(deps: Deps, sender: Addr) -> StdResult<ClaimsResponse> {
+        let claims = UNBONDING_CLAIMS
+            .load(deps.storage, &sender)
+            .unwrap_or_default();
+        Ok(ClaimsResponse { claims })
+    }
+
+    pub fn last_payment_block(deps: Deps) -> StdResult<LastPaymentBlockResponse> {
+        Ok(LastPaymentBlockResponse {
+            last_payment_block: LAST_PAYMENT_BLOCK.load(deps.storage)?,
+        })
     }
 }
 

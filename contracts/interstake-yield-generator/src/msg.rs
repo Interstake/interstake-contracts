@@ -1,12 +1,9 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Coin, Decimal, Uint128};
 
-use crate::state::TeamCommision;
+use crate::state::{ClaimDetails, Config, TeamCommision};
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub struct InstantiateMsg {
     /// Multisig contract that is allowed to perform admin operations
     pub owner: String,
@@ -18,8 +15,7 @@ pub struct InstantiateMsg {
     pub denom: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     /// Only called by owner
     UpdateConfig {
@@ -39,37 +35,60 @@ pub enum ExecuteMsg {
     UndelegateAll {},
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Returns current configuration
+    #[returns(ConfigResponse)]
     Config {},
     /// Returns total amount of delegated tokens
+    #[returns(TotalDelegatedResponse)]
     TotalDelegated {},
     /// Returns information about sender's delegation
+    #[returns(DelegateResponse)]
     Delegated { sender: String },
     /// Current available reward to claim
+    #[returns(RewardResponse)]
     Reward {},
     /// Returns all current unbonding claims for sender
+    #[returns(ClaimsResponse)]
     Claims { sender: String },
     /// Last payment block height
+    #[returns(LastPaymentBlockResponse)]
     LastPaymentBlock {},
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub struct MigrateMsg {}
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+pub struct ConfigResponse {
+    pub config: Config,
+}
+
+#[cw_serde]
+pub struct RewardResponse {
+    pub rewards: Vec<Coin>,
+}
+
+#[cw_serde]
+pub struct ClaimsResponse {
+    pub claims: Vec<ClaimDetails>,
+}
+
+#[cw_serde]
 pub struct DelegateResponse {
     pub start_height: u64,
     pub total_staked: Uint128,
     pub total_earnings: Uint128,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub struct TotalDelegatedResponse {
     pub amount: Coin,
+}
+
+#[cw_serde]
+pub struct LastPaymentBlockResponse {
+    pub last_payment_block: u64,
 }

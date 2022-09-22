@@ -5,7 +5,10 @@ use std::fmt;
 use cosmwasm_std::{coin, Addr, BlockInfo, Coin, Decimal};
 use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 
-use crate::msg::{DelegateResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TotalDelegatedResponse};
+use crate::msg::{
+    ClaimsResponse, ConfigResponse, DelegateResponse, ExecuteMsg, InstantiateMsg,
+    LastPaymentBlockResponse, QueryMsg, RewardResponse, TotalDelegatedResponse,
+};
 use crate::state::{ClaimDetails, Config, TeamCommision};
 
 pub fn contract_yield_generator<C>() -> Box<dyn Contract<C>>
@@ -180,11 +183,11 @@ impl Suite {
     }
 
     pub fn query_config(&self) -> AnyResult<Config> {
-        let response: Config = self
+        let response: ConfigResponse = self
             .app
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::Config {})?;
-        Ok(response)
+        Ok(response.config)
     }
 
     pub fn query_delegated(&self, sender: impl Into<String>) -> AnyResult<DelegateResponse> {
@@ -206,28 +209,28 @@ impl Suite {
     }
 
     pub fn query_reward(&self) -> AnyResult<Coin> {
-        let response: Coin = self
+        let response: RewardResponse = self
             .app
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::Reward {})?;
-        Ok(response)
+        Ok(response.rewards[0].clone())
     }
 
     pub fn query_last_payment_block(&self) -> AnyResult<u64> {
-        let response: u64 = self
+        let response: LastPaymentBlockResponse = self
             .app
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::LastPaymentBlock {})?;
-        Ok(response)
+        Ok(response.last_payment_block)
     }
 
     pub fn query_claims(&self, sender: impl Into<String>) -> AnyResult<Vec<ClaimDetails>> {
-        let response: Vec<ClaimDetails> = self.app.wrap().query_wasm_smart(
+        let response: ClaimsResponse = self.app.wrap().query_wasm_smart(
             self.contract.clone(),
             &QueryMsg::Claims {
                 sender: sender.into(),
             },
         )?;
-        Ok(response)
+        Ok(response.claims)
     }
 }
