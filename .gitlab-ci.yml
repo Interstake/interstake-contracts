@@ -1,4 +1,4 @@
-image: rust:1.59.0
+image: rust:1.64.0
 
 stages:
 - build
@@ -40,4 +40,5 @@ wasm_build:
       echo "Compiling $(basename $C) ..."
       (cd $C && cargo build --release --target wasm32-unknown-unknown --locked)
     done
-  - cargo install --debug --features iterator --example check_contract --version 1.0.0 -- cosmwasm-vm
+  - cargo install --debug --version 1.1.0 cosmwasm-check
+  - cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
