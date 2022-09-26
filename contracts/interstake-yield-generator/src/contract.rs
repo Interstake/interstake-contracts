@@ -10,8 +10,9 @@ use cw_utils::ensure_from_older_version;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ClaimsResponse, ConfigResponse, DelegateResponse, ExecuteMsg, InstantiateMsg,
-    LastPaymentBlockResponse, MigrateMsg, QueryMsg, RewardResponse, TotalDelegatedResponse,
+    ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
+    InstantiateMsg, LastPaymentBlockResponse, MigrateMsg, QueryMsg, RewardResponse,
+    TotalDelegatedResponse,
 };
 use crate::state::{
     ClaimDetails, Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK,
@@ -387,13 +388,13 @@ mod query {
         })
     }
 
-    pub fn delegated(deps: Deps, sender: String) -> StdResult<Option<DelegateResponse>> {
+    pub fn delegated(deps: Deps, sender: String) -> StdResult<DelegatedResponse> {
         let sender_addr = deps.api.addr_validate(&sender)?;
 
         let delegated = if let Some(details) = STAKE_DETAILS.may_load(deps.storage, &sender_addr)? {
             details
         } else {
-            return Ok(None);
+            return Ok(DelegatedResponse { delegated: vec![] });
         };
         let partial_stakes: Uint128 = delegated
             .partials
@@ -402,11 +403,13 @@ mod query {
             .sum();
         let total_staked = delegated.total.amount + partial_stakes;
 
-        Ok(Some(DelegateResponse {
-            start_height: delegated.start_height,
-            total_staked,
-            total_earnings: delegated.earnings,
-        }))
+        Ok(DelegatedResponse {
+            delegated: vec![DelegateResponse {
+                start_height: delegated.start_height,
+                total_staked,
+                total_earnings: delegated.earnings,
+            }],
+        })
     }
 
     pub fn total(deps: Deps) -> StdResult<TotalDelegatedResponse> {

@@ -6,8 +6,8 @@ use cosmwasm_std::{coin, Addr, BlockInfo, Coin, Decimal};
 use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 
 use crate::msg::{
-    ClaimsResponse, ConfigResponse, DelegateResponse, ExecuteMsg, InstantiateMsg,
-    LastPaymentBlockResponse, QueryMsg, RewardResponse, TotalDelegatedResponse,
+    ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
+    InstantiateMsg, LastPaymentBlockResponse, QueryMsg, RewardResponse, TotalDelegatedResponse,
 };
 use crate::state::{ClaimDetails, Config, TeamCommision};
 
@@ -191,13 +191,13 @@ impl Suite {
     }
 
     pub fn query_delegated(&self, sender: impl Into<String>) -> AnyResult<DelegateResponse> {
-        let response: DelegateResponse = self.app.wrap().query_wasm_smart(
+        let response: DelegatedResponse = self.app.wrap().query_wasm_smart(
             self.contract.clone(),
             &QueryMsg::Delegated {
                 sender: sender.into(),
             },
         )?;
-        Ok(response)
+        Ok(response.delegated[0].clone())
     }
 
     pub fn query_total_delegated(&self) -> AnyResult<TotalDelegatedResponse> {

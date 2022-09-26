@@ -45,7 +45,7 @@ pub enum QueryMsg {
     #[returns(TotalDelegatedResponse)]
     TotalDelegated {},
     /// Returns information about sender's delegation
-    #[returns(DelegateResponse)]
+    #[returns(DelegatedResponse)]
     Delegated { sender: String },
     /// Current available reward to claim
     #[returns(RewardResponse)]
@@ -74,6 +74,11 @@ pub struct RewardResponse {
 #[cw_serde]
 pub struct ClaimsResponse {
     pub claims: Vec<ClaimDetails>,
+}
+
+#[cw_serde]
+pub struct DelegatedResponse {
+    pub delegated: Vec<DelegateResponse>,
 }
 
 #[cw_serde]
