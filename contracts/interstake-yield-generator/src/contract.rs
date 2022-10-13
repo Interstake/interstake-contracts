@@ -79,7 +79,7 @@ pub fn execute(
         ExecuteMsg::Delegate {} => execute::delegate(deps, env, info),
         ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
         ExecuteMsg::Claim {} => execute::claim(deps, env, info),
-        ExecuteMsg::Restake {} => execute::restake(deps, env, info),
+        ExecuteMsg::Restake {} => execute::restake(deps, env),
         ExecuteMsg::UndelegateAll {} => todo!(),
     }
 }
@@ -260,12 +260,7 @@ mod execute {
         Ok(response)
     }
 
-    pub fn restake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-        let config = CONFIG.load(deps.storage)?;
-        if config.owner != info.sender {
-            return Err(ContractError::Unauthorized {});
-        }
-
+    pub fn restake(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         let mut stakes = STAKE_DETAILS
             .range(deps.storage, None, None, Order::Ascending)
             .map(|mapping| {
@@ -275,6 +270,7 @@ mod execute {
             })
             .collect::<StdResult<HashMap<Addr, StakeDetails>>>()?;
 
+        let config = CONFIG.load(deps.storage)?;
         let reward = query::reward(deps.as_ref(), &env, config.clone())?.unwrap_or_default();
         if reward.amount == Uint128::zero() {
             return Err(ContractError::RestakeNoReward {});
