@@ -1,10 +1,3 @@
-# Isotonic
-
-This repo maintains contracts and support libraries for implementation of Isotonic protocol.
-These are **not** available under an open source license, you need permission from Confio to use them.
-
-It is organized like [`cosmwasm-plus`](https://github.com/CosmWasm/cosmwasm-plus). You can use that as a reference.
-
 ## Compiling
 
 To compile all the contracts, run the following in the repo root:
@@ -44,7 +37,6 @@ cargo schema
 git add .
 ```
 
-Then add it to CI, by editing `.circleci/config.yml`. Just copy the `contract_tgrade_dso` section and
-rename it, pointing to your new contract.
+Then add it to CI, by editing `.circleci/config.yml`. 
 
 Finally, update `Cargo.toml` to use the current version used by all other contracts in this repo.
