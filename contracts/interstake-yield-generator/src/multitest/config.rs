@@ -27,7 +27,7 @@ fn proper_update() {
             owner: owner.clone(),
             staking_addr,
             team_commision: TeamCommision::None,
-            denom: "juno".to_owned(),
+            denom: "ujuno".to_owned(),
         }
     );
 
@@ -41,7 +41,7 @@ fn proper_update() {
             owner: owner.clone(),
             staking_addr: new_staking_addr.clone(),
             team_commision: TeamCommision::None,
-            denom: "juno".to_owned(),
+            denom: "ujuno".to_owned(),
         }
     );
 
@@ -55,7 +55,7 @@ fn proper_update() {
             owner: owner.clone(),
             staking_addr: new_staking_addr.clone(),
             team_commision: new_team_commision.clone(),
-            denom: "juno".to_owned(),
+            denom: "ujuno".to_owned(),
         }
     );
 
@@ -69,7 +69,7 @@ fn proper_update() {
             owner: Addr::unchecked(new_owner),
             staking_addr: new_staking_addr,
             team_commision: new_team_commision,
-            denom: "juno".to_owned(),
+            denom: "ujuno".to_owned(),
         }
     );
 
