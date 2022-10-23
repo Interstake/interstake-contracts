@@ -3,7 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, Coin, Decimal, DelegationResponse, Deps, DepsMut,
     DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StakingQuery,
-    StdResult, Uint128,
+    StdResult, Timestamp, Uint128,
 };
 use cw2::set_contract_version;
 use cw_utils::ensure_from_older_version;
@@ -48,6 +48,7 @@ pub fn instantiate(
         staking_addr: msg.staking_addr.clone(),
         team_commision,
         denom: msg.denom.clone(),
+        unbonding_period: Timestamp::from_seconds(msg.unbonding_period),
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -77,7 +78,15 @@ pub fn execute(
             owner,
             staking_addr,
             team_commision,
-        } => execute::update_config(deps, info, owner, staking_addr, team_commision),
+            unbonding_period,
+        } => execute::update_config(
+            deps,
+            info,
+            owner,
+            staking_addr,
+            team_commision,
+            unbonding_period,
+        ),
         ExecuteMsg::Delegate {} => execute::delegate(deps, env, info),
         ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
         ExecuteMsg::Claim {} => execute::claim(deps, env, info),
@@ -95,6 +104,7 @@ mod execute {
         new_owner: Option<String>,
         new_staking_addr: Option<String>,
         new_team_commision: Option<TeamCommision>,
+        new_unbonding_period: Option<u64>,
     ) -> Result<Response, ContractError> {
         let mut config = CONFIG.load(deps.storage)?;
         if config.owner != info.sender {
@@ -112,6 +122,10 @@ mod execute {
 
         if let Some(team_commision) = new_team_commision {
             config.team_commision = team_commision;
+        }
+
+        if let Some(unbonding_period) = new_unbonding_period {
+            config.unbonding_period = Timestamp::from_seconds(unbonding_period);
         }
 
         CONFIG.save(deps.storage, &config)?;
