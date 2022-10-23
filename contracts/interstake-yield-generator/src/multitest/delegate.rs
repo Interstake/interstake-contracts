@@ -32,7 +32,7 @@ fn one_user() {
         }
     );
 
-    suite.advance_time(ONE_DAY * 365);
+    suite.advance_time(ONE_DAY);
 
     let owner = suite.owner();
     let reward_amount = suite.query_reward().unwrap().amount;
