@@ -32,12 +32,14 @@ fn one_user() {
         }
     );
 
-    suite.advance_time(ONE_DAY);
+    suite.advance_time(ONE_DAY * 365);
 
     let owner = suite.owner();
     let reward_amount = suite.query_reward().unwrap().amount;
     let new_delegated = delegated + reward_amount;
 
+    // Default validator commision is 5%, APR is 80%
+    // 100_000_000 * 0.95 * 0.8 * (1/365) = 208_218.72
     assert_eq!(reward_amount.u128(), 208_219u128);
     suite.restake(owner.as_str()).unwrap();
     assert_eq!(

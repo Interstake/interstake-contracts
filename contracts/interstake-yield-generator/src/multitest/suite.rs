@@ -2,10 +2,8 @@ use anyhow::Result as AnyResult;
 use schemars::JsonSchema;
 use std::fmt;
 
-use cosmwasm_std::{coin, Addr, BlockInfo, Coin, Decimal, Validator};
-use cw_multi_test::{
-    App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor, StakingInfo,
-};
+use cosmwasm_std::{Addr, BlockInfo, Coin, Decimal, Validator};
+use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo};
 
 use crate::msg::{
     ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
