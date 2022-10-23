@@ -169,6 +169,7 @@ fn unexpired_claims_arent_removed() {
 
     // nothing happens
     let current_time = suite.app.block_info().time;
+    suite.process_staking_queue().unwrap();
     suite.claim(user).unwrap();
     assert_eq!(
         suite.query_claims(user).unwrap(),
@@ -187,6 +188,7 @@ fn unexpired_claims_arent_removed() {
     // expire first claim
     suite.advance_time(TWENTY_EIGHT_DAYS_SECONDS / 2);
     let current_time = suite.app.block_info().time;
+    suite.process_staking_queue().unwrap();
     suite.claim(user).unwrap();
     assert_eq!(
         suite.query_claims(user).unwrap(),

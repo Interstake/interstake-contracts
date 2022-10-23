@@ -3,7 +3,9 @@ use schemars::JsonSchema;
 use std::fmt;
 
 use cosmwasm_std::{Addr, BlockInfo, Coin, Decimal, Validator};
-use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo};
+use cw_multi_test::{
+    App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, StakingSudo, SudoMsg,
+};
 
 use crate::msg::{
     ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
@@ -142,6 +144,11 @@ impl Suite {
             block.time = block.time.plus_seconds(time);
             block.height += time / 5;
         })
+    }
+
+    pub fn process_staking_queue(&mut self) -> AnyResult<AppResponse> {
+        self.app
+            .sudo(SudoMsg::Staking(StakingSudo::ProcessQueue {}))
     }
 
     pub fn update_config(
