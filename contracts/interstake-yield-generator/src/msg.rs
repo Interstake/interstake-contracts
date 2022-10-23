@@ -34,6 +34,8 @@ pub enum ExecuteMsg {
     Claim {},
     /// Claims rewards and then stake them; Only called by owner
     Restake {},
+    /// Transfer amount of staked tokens to other address
+    Transfer { recipient: String, amount: Uint128 },
     /// Undelegates all tokens
     UndelegateAll {},
 }

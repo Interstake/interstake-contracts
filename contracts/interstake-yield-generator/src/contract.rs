@@ -96,6 +96,9 @@ pub fn execute(
         ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
         ExecuteMsg::Claim {} => execute::claim(deps, env, info),
         ExecuteMsg::Restake {} => execute::restake(deps, env),
+        ExecuteMsg::Transfer { recipient, amount } => {
+            execute::transfer(deps, env, info.sender, recipient, amount)
+        }
         ExecuteMsg::UndelegateAll {} => todo!(),
     }
 }
@@ -384,6 +387,36 @@ mod execute {
             .add_attribute("amount", reward.amount)
             .add_message(reward_msg)
             .add_message(delegate_msg))
+    }
+
+    pub fn transfer(
+        deps: DepsMut,
+        env: Env,
+        sender: Addr,
+        recipient: String,
+        amount: Uint128,
+    ) -> Result<Response, ContractError> {
+        let recipient = deps.api.addr_validate(&recipient)?;
+
+        STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
+            let mut stake_details = stake_details.unwrap_or_default();
+            stake_details.total.amount = stake_details.total.amount.checked_sub(amount)?;
+            Ok(stake_details)
+        })?;
+        STAKE_DETAILS.update(deps.storage, &recipient, |stake_details| -> StdResult<_> {
+            let mut stake_details = stake_details.unwrap_or_default();
+            stake_details.total.amount = stake_details.total.amount.checked_add(amount)?;
+            if stake_details.start_height == 0 {
+                stake_details.start_height = env.block.height;
+            }
+            Ok(stake_details)
+        })?;
+
+        Ok(Response::new()
+            .add_attribute("action", "transfer")
+            .add_attribute("amount", amount)
+            .add_attribute("sender", &sender)
+            .add_attribute("recipient", &recipient))
     }
 }
 
