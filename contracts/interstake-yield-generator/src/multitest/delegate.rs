@@ -1,6 +1,6 @@
 use super::suite::SuiteBuilder;
 
-use cosmwasm_std::{coin, coins, Uint128};
+use cosmwasm_std::{assert_approx_eq, coin, coins, Decimal, Uint128};
 
 use crate::msg::{DelegateResponse, TotalDelegatedResponse};
 
@@ -21,7 +21,7 @@ fn one_user() {
         suite.query_delegated(user).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: delegated.clone(),
+            total_staked: delegated,
             total_earnings: Uint128::zero(),
         }
     );
@@ -81,122 +81,168 @@ fn one_user() {
     );
 }
 
+struct User {
+    pub name: String,
+    pub delegated: Uint128,
+    pub weight: Decimal,
+}
+
+impl User {
+    pub fn new(name: &str, delegated: u128, weight: Decimal) -> User {
+        User {
+            name: name.into(),
+            delegated: delegated.into(),
+            weight,
+        }
+    }
+}
+
 #[test]
 fn multiple_users() {
-    let user1 = "user1";
-    let user2 = "user2";
-    let user3 = "user3";
-    let user4 = "user4";
-    let user5 = "user5";
+    let user1 = User::new("user1", 100_000_000, Decimal::from_ratio(1u128, 15u128));
+    let user2 = User::new("user2", 200_000_000, Decimal::from_ratio(2u128, 15u128));
+    let user3 = User::new("user3", 300_000_000, Decimal::from_ratio(3u128, 15u128));
+    let user4 = User::new("user4", 400_000_000, Decimal::from_ratio(4u128, 15u128));
+    let user5 = User::new("user5", 500_000_000, Decimal::from_ratio(5u128, 15u128));
     let mut suite = SuiteBuilder::new()
-        .with_funds(user1, &coins(10_000, "ujuno"))
-        .with_funds(user2, &coins(20_000, "ujuno"))
-        .with_funds(user3, &coins(30_000, "ujuno"))
-        .with_funds(user4, &coins(40_000, "ujuno"))
-        .with_funds(user5, &coins(50_000, "ujuno"))
+        .with_funds(&user1.name, &coins(user1.delegated.u128(), "ujuno"))
+        .with_funds(&user2.name, &coins(user2.delegated.u128(), "ujuno"))
+        .with_funds(&user3.name, &coins(user3.delegated.u128(), "ujuno"))
+        .with_funds(&user4.name, &coins(user4.delegated.u128(), "ujuno"))
+        .with_funds(&user5.name, &coins(user5.delegated.u128(), "ujuno"))
         .build();
 
-    suite.delegate(user1, coin(10_000, "ujuno")).unwrap();
-    suite.delegate(user2, coin(20_000, "ujuno")).unwrap();
-    suite.delegate(user3, coin(30_000, "ujuno")).unwrap();
-    suite.delegate(user4, coin(40_000, "ujuno")).unwrap();
-    suite.delegate(user5, coin(50_000, "ujuno")).unwrap();
+    suite
+        .delegate(&user1.name, coin(user1.delegated.u128(), "ujuno"))
+        .unwrap();
+    suite
+        .delegate(&user2.name, coin(user2.delegated.u128(), "ujuno"))
+        .unwrap();
+    suite
+        .delegate(&user3.name, coin(user3.delegated.u128(), "ujuno"))
+        .unwrap();
+    suite
+        .delegate(&user4.name, coin(user4.delegated.u128(), "ujuno"))
+        .unwrap();
+    suite
+        .delegate(&user5.name, coin(user5.delegated.u128(), "ujuno"))
+        .unwrap();
     assert_eq!(
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
-            amount: coin(150_000, "ujuno")
+            amount: coin(1_500_000_000, "ujuno")
         }
     );
+
+    suite.advance_time(ONE_DAY);
 
     let owner = suite.owner();
+    let reward_amount = suite.query_reward().unwrap().amount;
 
-    // mock makes that every delegation reward is 1/10 of delegated tokens, so 15_000 tokens in this case
-    assert_eq!(suite.query_reward().unwrap(), coin(15_000, "ujuno"));
+    assert_eq!(reward_amount.u128(), 3_123_287u128);
     suite.restake(owner.as_str()).unwrap();
-    // user1 - 10_000 delegated / 150_000 total * 15_000 reward = 0.0666 * 15_000 = 999
+
+    let user1_reward = reward_amount * user1.weight;
     assert_eq!(
-        suite.query_delegated(user1).unwrap(),
+        suite.query_delegated(user1.name).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: Uint128::new(10_999),
-            total_earnings: Uint128::new(999),
+            total_staked: user1.delegated + user1_reward,
+            total_earnings: user1_reward,
         }
     );
 
-    // user2 - 20_000 delegated / 150_000 total * 15_000 reward = 0.1333 * 15_000 = 1_999.5
+    let user2_reward = reward_amount * user2.weight;
     assert_eq!(
-        suite.query_delegated(user2).unwrap(),
+        suite.query_delegated(user2.name).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: Uint128::new(21_999),
-            total_earnings: Uint128::new(1_999),
+            total_staked: user2.delegated + user2_reward,
+            total_earnings: user2_reward,
         }
     );
 
-    // user3 - 30_000 delegated / 150_000 total * 15_000 reward = 0.2 * 15_000 = 3_000
+    let user3_reward = reward_amount * user3.weight;
     assert_eq!(
-        suite.query_delegated(user3).unwrap(),
+        suite.query_delegated(user3.name).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: Uint128::new(33_000),
-            total_earnings: Uint128::new(3_000),
+            total_staked: user3.delegated + user3_reward,
+            total_earnings: user3_reward,
         }
     );
 
-    // user4 - 40_000 delegated / 150_000 total * 15_000 reward = 0.2666 * 15_000 = 3_999
+    let user4_reward = reward_amount * user4.weight;
     assert_eq!(
-        suite.query_delegated(user4).unwrap(),
+        suite.query_delegated(user4.name).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: Uint128::new(43_999),
-            total_earnings: Uint128::new(3_999),
+            total_staked: user4.delegated + user4_reward,
+            total_earnings: user4_reward,
         }
     );
 
-    // user5 - 50_000 delegated / 150_000 total * 15_000 reward = 0.3333 * 15_000 = 4_999.5
+    let user5_reward = reward_amount * user5.weight;
     assert_eq!(
-        suite.query_delegated(user5).unwrap(),
+        suite.query_delegated(user5.name).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: Uint128::new(54_999),
-            total_earnings: Uint128::new(4_999),
+            total_staked: user5.delegated + user5_reward,
+            total_earnings: user5_reward,
         }
     );
-    // due to rounding issues, we are losing some parts of rewards (currently sums up to 14_996)
-    assert_eq!(
-        suite.query_total_delegated().unwrap(),
-        TotalDelegatedResponse {
-            amount: coin(150_000 + 14_996, "ujuno")
-        }
+
+    // due to rounding issues, we are losing some parts of rewards
+    assert_approx_eq!(
+        suite.query_total_delegated().unwrap().amount.amount.u128(),
+        1_500_000_000u128 + reward_amount.u128(),
+        "0.00000001"
     );
 }
 
 #[test]
 fn partial_user() {
-    let user1 = "user1";
-    let user2 = "user2";
-    let user_partial = "user_partial";
+    let user1 = User::new("user1", 50_000_000_000, Decimal::from_ratio(5u128, 9u128));
+    let user2 = User::new("user2", 30_000_000_000, Decimal::from_ratio(3u128, 9u128));
+    let user_partial = User::new(
+        "user_partial",
+        20_000_000_000,
+        Decimal::from_ratio(1u128, 9u128),
+    );
     let mut suite = SuiteBuilder::new()
-        .with_funds(user1, &coins(50_000, "ujuno"))
-        .with_funds(user2, &coins(30_000, "ujuno"))
-        .with_funds(user_partial, &coins(20_000, "ujuno"))
+        .with_funds(&user1.name, &coins(user1.delegated.u128(), "ujuno"))
+        .with_funds(&user2.name, &coins(user2.delegated.u128(), "ujuno"))
+        .with_funds(
+            &user_partial.name,
+            &coins(user_partial.delegated.u128(), "ujuno"),
+        )
         .build();
 
-    suite.delegate(user1, coin(50_000, "ujuno")).unwrap();
-    suite.delegate(user2, coin(30_000, "ujuno")).unwrap();
+    suite
+        .delegate(&user1.name, coin(user1.delegated.u128(), "ujuno"))
+        .unwrap();
+    suite
+        .delegate(&user2.name, coin(user2.delegated.u128(), "ujuno"))
+        .unwrap();
     assert_eq!(suite.query_last_payment_block().unwrap(), 12345);
 
-    // advance by some arbitrary height
-    suite.advance_height(500);
+    // advance by some arbitrary time
+    suite.advance_time(ONE_DAY);
 
     // now add another user in middle of autocompound period
-    suite.delegate(user_partial, coin(20_000, "ujuno")).unwrap();
+    suite
+        .delegate(
+            &user_partial.name,
+            coin(user_partial.delegated.u128(), "ujuno"),
+        )
+        .unwrap();
 
-    // advance by same height as previously - partial user should count as 0.5
-    suite.advance_height(500);
+    // advance by same time as previously - partial user should count as 0.5
+    suite.advance_time(ONE_DAY);
 
-    // reward is hardcoded 10% of total staked, it doesn't matter
-    assert_eq!(suite.query_reward().unwrap(), coin(10_000, "ujuno"));
+    let reward_amount = suite.query_reward().unwrap().amount;
+
+    assert_eq!(reward_amount.u128(), 374_794_520u128);
     suite.restake(suite.owner().as_str()).unwrap();
 
     // user weights
@@ -207,43 +253,44 @@ fn partial_user() {
     // sum_of_weights = 90_000
 
     // user1 reward ratio = 50_000 / 90_000 = 0.5555
-    // user1 - 0.5555 * 10_000 reward = 5_555
+    let user1_reward = reward_amount * user1.weight;
     assert_eq!(
-        suite.query_delegated(user1).unwrap(),
+        suite.query_delegated(&user1.name).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: Uint128::new(50_000 + 5_555),
-            total_earnings: Uint128::new(5_555),
+            total_staked: user1.delegated + user1_reward,
+            total_earnings: user1_reward,
         }
     );
 
     // user2 reward ratio = 30_000 / 90_000 = 0.3333
-    // user2 - 0.3333 * 10_000 reward = 3_333
+    let user2_reward = reward_amount * user2.weight;
     assert_eq!(
-        suite.query_delegated(user2).unwrap(),
+        suite.query_delegated(&user2.name).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: Uint128::new(30_000 + 3_333),
-            total_earnings: Uint128::new(3_333),
+            total_staked: user2.delegated + user2_reward,
+            total_earnings: user2_reward,
         }
     );
 
     // user_partial reward ratio = 10_000 / 90_000 = 0.1111
-    // user_partial = 0.1111 * 10_000 reward = 1_111
+    let user_partial_reward = reward_amount * user_partial.weight;
+    let user_partial_height = 12345 + ONE_DAY / 5; // height = time / 5;
     assert_eq!(
-        suite.query_delegated(user_partial).unwrap(),
+        suite.query_delegated(&user_partial.name).unwrap(),
         DelegateResponse {
-            start_height: 12345 + 500,
-            total_staked: Uint128::new(20_000 + 1_111),
-            total_earnings: Uint128::new(1_111),
+            start_height: user_partial_height,
+            total_staked: user_partial.delegated + user_partial_reward,
+            total_earnings: user_partial_reward,
         }
     );
-    assert_eq!(
-        suite.query_total_delegated().unwrap(),
-        TotalDelegatedResponse {
-            // again, lost one token due to rounding issues
-            amount: coin(100_000 + 9_999, "ujuno")
-        }
+
+    // again, lost one token due to rounding issues
+    assert_approx_eq!(
+        suite.query_total_delegated().unwrap().amount.amount.u128(),
+        100_000_000_000u128 + reward_amount.u128(),
+        "0.00000001"
     );
 }
 
