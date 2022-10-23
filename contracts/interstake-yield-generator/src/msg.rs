@@ -13,8 +13,8 @@ pub struct InstantiateMsg {
     pub team_commision: Option<Decimal>,
     /// Used denom
     pub denom: String,
-    /// Unbondig period in seconds
-    pub unbonding_period: u64,
+    /// Unbondig period in seconds. Default: 2_419_200 (28 days)
+    pub unbonding_period: Option<u64>,
 }
 
 #[cw_serde]

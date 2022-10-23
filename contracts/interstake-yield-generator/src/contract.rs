@@ -24,8 +24,6 @@ use std::collections::HashMap;
 const CONTRACT_NAME: &str = "crates.io:interstake-yield-generator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub const TWENTY_EIGHT_DAYS_SECONDS: u64 = 3600 * 24 * 28;
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -43,12 +41,19 @@ pub fn instantiate(
         TeamCommision::None
     };
 
+    let unbonding_period = if let Some(unbonding_period) = msg.unbonding_period {
+        Timestamp::from_seconds(unbonding_period)
+    } else {
+        // Default: 2_419_200 (28 days)
+        Timestamp::from_seconds(2_419_200)
+    };
+
     let config = Config {
         owner: owner.clone(),
         staking_addr: msg.staking_addr.clone(),
         team_commision,
         denom: msg.denom.clone(),
-        unbonding_period: Timestamp::from_seconds(msg.unbonding_period),
+        unbonding_period,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -208,11 +213,14 @@ mod execute {
 
         // Unbonding will result in coins going back to contract.
         // Create a claim to later be able to get tokens back.
-        let next_month = env.block.time.plus_seconds(TWENTY_EIGHT_DAYS_SECONDS);
+        let release_timestamp = env
+            .block
+            .time
+            .plus_seconds(config.unbonding_period.seconds());
         UNBONDING_CLAIMS.update(deps.storage, &info.sender, |vec_claims| -> StdResult<_> {
             let mut vec_claims = vec_claims.unwrap_or_default();
             vec_claims.push(ClaimDetails {
-                release_timestamp: next_month,
+                release_timestamp,
                 amount: amount.clone(),
             });
             Ok(vec_claims)
@@ -225,6 +233,7 @@ mod execute {
             .add_attribute("validator", &config.staking_addr)
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
+            .add_attribute("release_timestamp", release_timestamp.to_string())
             .add_message(msg))
     }
 
