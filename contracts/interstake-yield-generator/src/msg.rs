@@ -13,6 +13,8 @@ pub struct InstantiateMsg {
     pub team_commision: Option<Decimal>,
     /// Used denom
     pub denom: String,
+    /// Unbondig period in seconds. Default: 2_419_200 (28 days)
+    pub unbonding_period: Option<u64>,
 }
 
 #[cw_serde]
@@ -22,6 +24,7 @@ pub enum ExecuteMsg {
         owner: Option<String>,
         staking_addr: Option<String>,
         team_commision: Option<TeamCommision>,
+        unbonding_period: Option<u64>,
     },
     /// Adds amount of tokens to common staking pool
     Delegate {},

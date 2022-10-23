@@ -18,6 +18,7 @@ pub struct Config {
     pub staking_addr: String,
     pub team_commision: TeamCommision,
     pub denom: String,
+    pub unbonding_period: Timestamp,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]

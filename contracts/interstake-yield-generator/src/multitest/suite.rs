@@ -13,6 +13,8 @@ use crate::msg::{
 };
 use crate::state::{ClaimDetails, Config, TeamCommision};
 
+pub const TWENTY_EIGHT_DAYS: u64 = 3600 * 24 * 28;
+
 pub fn contract_yield_generator<C>() -> Box<dyn Contract<C>>
 where
     C: Clone + fmt::Debug + PartialEq + JsonSchema + 'static,
@@ -100,6 +102,7 @@ impl SuiteBuilder {
                     staking_addr: self.staking_addr.to_string(),
                     team_commision: self.team_commision,
                     denom: self.denom,
+                    unbonding_period: Some(TWENTY_EIGHT_DAYS),
                 },
                 &[],
                 "yield_generator",
@@ -157,6 +160,7 @@ impl Suite {
         owner: impl Into<Option<String>>,
         staking_addr: impl Into<Option<String>>,
         team_commision: impl Into<Option<TeamCommision>>,
+        unbonding_period: impl Into<Option<u64>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -165,6 +169,7 @@ impl Suite {
                 owner: owner.into(),
                 staking_addr: staking_addr.into(),
                 team_commision: team_commision.into(),
+                unbonding_period: unbonding_period.into(),
             },
             &[],
         )

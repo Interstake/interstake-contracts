@@ -3,12 +3,13 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, Coin, Decimal, DelegationResponse, Deps, DepsMut,
     DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StakingQuery,
-    StdResult, Uint128,
+    StdResult, Timestamp, Uint128,
 };
 use cw2::set_contract_version;
 use cw_utils::ensure_from_older_version;
 
 use crate::error::ContractError;
+use crate::migration::migrate_config;
 use crate::msg::{
     ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
     InstantiateMsg, LastPaymentBlockResponse, MigrateMsg, QueryMsg, RewardResponse,
@@ -23,8 +24,6 @@ use std::collections::HashMap;
 
 const CONTRACT_NAME: &str = "crates.io:interstake-yield-generator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-pub const TWENTY_EIGHT_DAYS_SECONDS: u64 = 3600 * 24 * 28;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -43,11 +42,18 @@ pub fn instantiate(
         TeamCommision::None
     };
 
+    let unbonding_period = if let Some(unbonding_period) = msg.unbonding_period {
+        Timestamp::from_seconds(unbonding_period)
+    } else {
+        Timestamp::from_seconds(3600 * 24 * 28) // Default: 28 days
+    };
+
     let config = Config {
         owner: owner.clone(),
         staking_addr: msg.staking_addr.clone(),
         team_commision,
         denom: msg.denom.clone(),
+        unbonding_period,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -77,7 +83,15 @@ pub fn execute(
             owner,
             staking_addr,
             team_commision,
-        } => execute::update_config(deps, info, owner, staking_addr, team_commision),
+            unbonding_period,
+        } => execute::update_config(
+            deps,
+            info,
+            owner,
+            staking_addr,
+            team_commision,
+            unbonding_period,
+        ),
         ExecuteMsg::Delegate {} => execute::delegate(deps, env, info),
         ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
         ExecuteMsg::Claim {} => execute::claim(deps, env, info),
@@ -95,6 +109,7 @@ mod execute {
         new_owner: Option<String>,
         new_staking_addr: Option<String>,
         new_team_commision: Option<TeamCommision>,
+        new_unbonding_period: Option<u64>,
     ) -> Result<Response, ContractError> {
         let mut config = CONFIG.load(deps.storage)?;
         if config.owner != info.sender {
@@ -112,6 +127,10 @@ mod execute {
 
         if let Some(team_commision) = new_team_commision {
             config.team_commision = team_commision;
+        }
+
+        if let Some(unbonding_period) = new_unbonding_period {
+            config.unbonding_period = Timestamp::from_seconds(unbonding_period);
         }
 
         CONFIG.save(deps.storage, &config)?;
@@ -194,11 +213,14 @@ mod execute {
 
         // Unbonding will result in coins going back to contract.
         // Create a claim to later be able to get tokens back.
-        let next_month = env.block.time.plus_seconds(TWENTY_EIGHT_DAYS_SECONDS);
+        let release_timestamp = env
+            .block
+            .time
+            .plus_seconds(config.unbonding_period.seconds());
         UNBONDING_CLAIMS.update(deps.storage, &info.sender, |vec_claims| -> StdResult<_> {
             let mut vec_claims = vec_claims.unwrap_or_default();
             vec_claims.push(ClaimDetails {
-                release_timestamp: next_month,
+                release_timestamp,
                 amount: amount.clone(),
             });
             Ok(vec_claims)
@@ -211,6 +233,7 @@ mod execute {
             .add_attribute("validator", &config.staking_addr)
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
+            .add_attribute("release_timestamp", release_timestamp.to_string())
             .add_message(msg))
     }
 
@@ -464,6 +487,8 @@ mod query {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let storage_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    migrate_config(deps, &storage_version)?;
     Ok(Response::new())
 }
