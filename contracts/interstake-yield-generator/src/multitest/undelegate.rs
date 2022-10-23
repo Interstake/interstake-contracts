@@ -169,7 +169,6 @@ fn unexpired_claims_arent_removed() {
 
     // nothing happens
     let current_time = suite.app.block_info().time;
-    dbg!("second claim");
     suite.claim(user).unwrap();
     assert_eq!(
         suite.query_claims(user).unwrap(),

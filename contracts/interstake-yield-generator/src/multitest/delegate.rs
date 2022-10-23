@@ -379,138 +379,149 @@ fn multiple_partial_users() {
 
 #[test]
 fn partial_user_become_full_after_restake() {
-    let user1 = "user1";
-    let user2 = "user2";
-    let user3 = "user3";
+    let user1 = User::new("user1", 40_000_000_000);
+    let user2 = User::new("user2", 30_000_000_000);
+    let user3 = User::new("user3", 35_000_000_000);
     let mut suite = SuiteBuilder::new()
-        .with_funds(user1, &coins(40_000, "ujuno"))
-        .with_funds(user2, &coins(30_000, "ujuno"))
-        .with_funds(user3, &coins(35_000, "ujuno"))
+        .with_funds(&user1.name, &coins(user1.delegated.u128(), "ujuno"))
+        .with_funds(&user2.name, &coins(user2.delegated.u128(), "ujuno"))
+        .with_funds(&user3.name, &coins(user3.delegated.u128(), "ujuno"))
         .build();
 
     // advance by some arbitrary height (0.2 weight)
     suite.advance_height(200);
-    suite.delegate(user1, coin(40_000, "ujuno")).unwrap();
+    suite
+        .delegate(&user1.name, coin(user1.delegated.u128(), "ujuno"))
+        .unwrap();
     // advance height up to 1000 blocks
     suite.advance_height(800);
 
-    // hardcoded 10% of delegated amount
-    assert_eq!(suite.query_reward().unwrap(), coin(4_000, "ujuno"));
+    let reward1_amount = suite.query_reward().unwrap().amount;
+    assert_eq!(reward1_amount.u128(), 4_819_888u128);
+
     suite.restake(suite.owner().as_str()).unwrap();
 
     // user1 was lone delegator so whole reward goes to him anyway
+    let user1_reward1 = reward1_amount;
+    let user1_restaked = user1.delegated + user1_reward1;
     assert_eq!(
-        suite.query_delegated(user1).unwrap(),
+        suite.query_delegated(&user1.name).unwrap(),
         DelegateResponse {
             start_height: 12345 + 200,
-            total_staked: Uint128::new(40_000 + 4_000),
-            total_earnings: Uint128::new(4_000),
+            total_staked: user1_restaked,
+            total_earnings: user1_reward1,
         }
     );
 
-    assert_eq!(
-        suite.query_total_delegated().unwrap(),
-        TotalDelegatedResponse {
-            amount: coin(44_000, "ujuno")
-        }
+    assert_approx_eq!(
+        suite.query_total_delegated().unwrap().amount.amount.u128(),
+        40_000_000_000u128 + reward1_amount.u128(),
+        "0.00000001"
     );
+
     suite.advance_height(300);
-    suite.delegate(user2, coin(30_000, "ujuno")).unwrap();
+
+    suite
+        .delegate(&user2.name, coin(user2.delegated.u128(), "ujuno"))
+        .unwrap();
+
     // advance height up to 1000 blocks
     suite.advance_height(700);
 
-    // hardcoded 10% of delegated amount
-    assert_eq!(suite.query_reward().unwrap(), coin(4_400 + 3_000, "ujuno"));
+    let reward2_amount = suite.query_reward().unwrap().amount;
+    assert_eq!(reward2_amount.u128(), 7_350_910u128);
     suite.restake(suite.owner().as_str()).unwrap();
 
     // user weights
-    // user1 = 44_000 * 1.0 - this proves that he become a full delegator
+    // user1 = 40_000 + reward * 1.0 - this proves that he become a full delegator
     // user2 = 30_000 * 0.3 = 9_000
-    //
-    // sum_of_weights = 53_000
 
-    // user1 reward ratio = 44_000 / 53_000 = 0.8301
-    // user1 - 0.8301 * 7_400 reward = 6142.74
+    let sum_of_weights = user1_restaked + user2.delegated * Decimal::percent(30);
+
+    let user1_reward2 = reward2_amount * Decimal::from_ratio(user1_restaked, sum_of_weights);
+    let user1_restaked = user1_restaked + user1_reward2;
     assert_eq!(
-        suite.query_delegated(user1).unwrap(),
+        suite.query_delegated(&user1.name).unwrap(),
         DelegateResponse {
             start_height: 12345 + 200,
-            total_staked: Uint128::new(44_000 + 6_143),
-            total_earnings: Uint128::new(4_000 + 6_143),
+            total_staked: user1_restaked,
+            total_earnings: user1_reward1 + user1_reward2,
         }
     );
 
-    // user2 reward ratio = 9_000 / 53_000 = 0.1698
-    // user2 - 0.1698 * 7_400 reward = 1256.52
+    let user2_reward2 = reward2_amount
+        * Decimal::from_ratio(user2.delegated * Decimal::percent(30), sum_of_weights);
+    let user2_restaked = user2.delegated + user2_reward2;
     assert_eq!(
-        suite.query_delegated(user2).unwrap(),
+        suite.query_delegated(&user2.name).unwrap(),
         DelegateResponse {
             start_height: 12345 + 1300,
-            total_staked: Uint128::new(30_000 + 1_256),
-            total_earnings: Uint128::new(1_256),
+            total_staked: user2_restaked,
+            total_earnings: user2_reward2,
         }
     );
 
-    assert_eq!(
-        suite.query_total_delegated().unwrap(),
-        TotalDelegatedResponse {
-            amount: coin(81_399, "ujuno")
-        }
+    assert_approx_eq!(
+        dbg!(suite.query_total_delegated().unwrap().amount.amount.u128()),
+        70_000_000_000u128 + reward1_amount.u128() + reward2_amount.u128(),
+        "0.00000001"
     );
+
     suite.advance_height(400);
-    suite.delegate(user3, coin(35_000, "ujuno")).unwrap();
+    suite
+        .delegate(&user3.name, coin(user3.delegated.u128(), "ujuno"))
+        .unwrap();
     // advance height up to 1000 blocks
     suite.advance_height(600);
 
-    // hardcoded 10% of delegated amount
-    assert_eq!(suite.query_reward().unwrap(), coin(8_140 + 3_500, "ujuno"));
+    let reward3_amount = suite.query_reward().unwrap().amount;
+    assert_eq!(reward3_amount.u128(), 10_966_712u128);
     suite.restake(suite.owner().as_str()).unwrap();
 
     // user weights
     // user1 = 50_143 * 1.0
     // user2 = 31_256 * 1.0
     // user3 = 35_000 * 0.4 = 14_000
-    //
-    // sum_of_weights = 95_399
+
+    let sum_of_weights = user1_restaked + user2_restaked + user3.delegated * Decimal::percent(40);
 
     // user1 reward ratio = 50_143 / 95_399 = 0.5256
-    // user1 - 0.5256 * 11_640 reward = 6117.984
+    let user1_reward3 = reward3_amount * Decimal::from_ratio(user1_restaked, sum_of_weights);
     assert_eq!(
-        suite.query_delegated(user1).unwrap(),
+        suite.query_delegated(&user1.name).unwrap(),
         DelegateResponse {
             start_height: 12345 + 200,
-            total_staked: Uint128::new(50_143 + 6_118),
-            total_earnings: Uint128::new(4_000 + 6_143 + 6_118),
+            total_staked: user1_restaked + user1_reward3,
+            total_earnings: user1_reward1 + user1_reward2 + user1_reward3,
         }
     );
 
     // user2 reward ratio = 31_256 / 95_399 = 0.3276
-    // user2 - 0.3276 * 11_640 reward = 3813.264
+    let user2_reward3 = reward3_amount * Decimal::from_ratio(user2_restaked, sum_of_weights);
     assert_eq!(
-        suite.query_delegated(user2).unwrap(),
+        suite.query_delegated(&user2.name).unwrap(),
         DelegateResponse {
             start_height: 12345 + 1300,
-            total_staked: Uint128::new(31_256 + 3_813),
-            total_earnings: Uint128::new(1256 + 3_813),
+            total_staked: user2_restaked + user2_reward3,
+            total_earnings: user2_reward2 + user2_reward3,
         }
     );
 
     // user3 reward ratio = 14_000 / 95_399 = 0.1467
-    // user3 - 0.1467 * 11_640 reward = 1707.588
+    let user3_reward3 = reward3_amount
+        * Decimal::from_ratio(user3.delegated * Decimal::percent(40), sum_of_weights);
     assert_eq!(
-        suite.query_delegated(user3).unwrap(),
+        suite.query_delegated(&user3.name).unwrap(),
         DelegateResponse {
             start_height: 12345 + 2400,
-            total_staked: Uint128::new(35_000 + 1708),
-            total_earnings: Uint128::new(1708),
+            total_staked: user3.delegated + user3_reward3,
+            total_earnings: user3_reward3,
         }
     );
 
-    assert_eq!(
-        suite.query_total_delegated().unwrap(),
-        TotalDelegatedResponse {
-            // old total amount + 35k delegated last round + 11_640 last reward minus rounding issue
-            amount: coin(81_399 + 35_000 + 11_639, "ujuno")
-        }
+    assert_approx_eq!(
+        dbg!(suite.query_total_delegated().unwrap().amount.amount.u128()),
+        105_000_000_000u128 + reward1_amount.u128() + reward2_amount.u128() + reward3_amount.u128(),
+        "0.00000001"
     );
 }
