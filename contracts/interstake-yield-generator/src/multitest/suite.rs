@@ -2,7 +2,7 @@ use anyhow::Result as AnyResult;
 use schemars::JsonSchema;
 use std::fmt;
 
-use cosmwasm_std::{Addr, BlockInfo, Coin, Decimal, Validator};
+use cosmwasm_std::{Addr, BlockInfo, Coin, Decimal, Uint128, Validator};
 use cw_multi_test::{
     App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, StakingSudo, SudoMsg,
 };
@@ -207,6 +207,23 @@ impl Suite {
             Addr::unchecked(sender),
             self.contract.clone(),
             &ExecuteMsg::Claim {},
+            &[],
+        )
+    }
+
+    pub fn transfer(
+        &mut self,
+        sender: &str,
+        recipient: &str,
+        amount: Uint128,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::Transfer {
+                recipient: recipient.into(),
+                amount,
+            },
             &[],
         )
     }
