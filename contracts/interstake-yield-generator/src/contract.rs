@@ -44,8 +44,7 @@ pub fn instantiate(
     let unbonding_period = if let Some(unbonding_period) = msg.unbonding_period {
         Timestamp::from_seconds(unbonding_period)
     } else {
-        // Default: 2_419_200 (28 days)
-        Timestamp::from_seconds(2_419_200)
+        Timestamp::from_seconds(3600 * 24 * 28) // Default: 28 days
     };
 
     let config = Config {

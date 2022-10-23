@@ -1,8 +1,7 @@
-use super::suite::SuiteBuilder;
+use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
 use cosmwasm_std::{coin, coins, Uint128};
 
-use crate::contract::TWENTY_EIGHT_DAYS_SECONDS;
 use crate::error::ContractError;
 use crate::msg::DelegateResponse;
 use crate::state::ClaimDetails;
@@ -42,7 +41,7 @@ fn create_basic_claim() {
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(100, "ujuno"),
-            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS_SECONDS)
+            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
         }]
     );
 
@@ -79,7 +78,7 @@ fn undelegate_part_of_tokens() {
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(700, "ujuno"),
-            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS_SECONDS)
+            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
         }]
     );
 
@@ -129,7 +128,7 @@ fn cant_undelegate_partially_delegated_tokens() {
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(500, "ujuno"),
-            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS_SECONDS)
+            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
         }]
     );
     assert_eq!(
@@ -157,12 +156,12 @@ fn unexpired_claims_arent_removed() {
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(500, "ujuno"),
-            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS_SECONDS)
+            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
         }]
     );
 
     // advance time to create some delegation with other timestamp
-    suite.advance_time(TWENTY_EIGHT_DAYS_SECONDS / 2);
+    suite.advance_time(TWENTY_EIGHT_DAYS / 2);
     suite.delegate(user, coin(700, "ujuno")).unwrap();
     suite.restake("owner").unwrap();
     suite.undelegate(user, coin(700, "ujuno")).unwrap();
@@ -176,17 +175,17 @@ fn unexpired_claims_arent_removed() {
         vec![
             ClaimDetails {
                 amount: coin(500, "ujuno"),
-                release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS_SECONDS / 2)
+                release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS / 2)
             },
             ClaimDetails {
                 amount: coin(700, "ujuno"),
-                release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS_SECONDS)
+                release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
             }
         ]
     );
 
     // expire first claim
-    suite.advance_time(TWENTY_EIGHT_DAYS_SECONDS / 2);
+    suite.advance_time(TWENTY_EIGHT_DAYS / 2);
     let current_time = suite.app.block_info().time;
     suite.process_staking_queue().unwrap();
     suite.claim(user).unwrap();
@@ -194,7 +193,7 @@ fn unexpired_claims_arent_removed() {
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(700, "ujuno"),
-            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS_SECONDS / 2)
+            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS / 2)
         }]
     );
 }
