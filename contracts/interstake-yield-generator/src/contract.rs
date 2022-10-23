@@ -400,7 +400,9 @@ mod execute {
 
         STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
             let mut stake_details = stake_details.unwrap_or_default();
-            stake_details.total.amount = stake_details.total.amount.checked_sub(amount)?;
+            dbg!(stake_details.clone());
+            stake_details.total.amount =
+                dbg!(stake_details.total.amount).checked_sub(dbg!(amount))?;
             Ok(stake_details)
         })?;
         STAKE_DETAILS.update(deps.storage, &recipient, |stake_details| -> StdResult<_> {
