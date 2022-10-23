@@ -4,67 +4,77 @@ use cosmwasm_std::{coin, coins, Uint128};
 
 use crate::msg::{DelegateResponse, TotalDelegatedResponse};
 
+const ONE_DAY: u64 = 3600 * 24;
+
 #[test]
 fn one_user() {
     let user = "user";
+    let delegated = Uint128::new(100_000_000u128);
     let mut suite = SuiteBuilder::new()
-        .with_funds(user, &coins(100, "juno"))
+        .with_funds(user, &coins(delegated.u128(), "ujuno"))
         .build();
 
-    suite.delegate(user, coin(100, "juno")).unwrap();
+    suite
+        .delegate(user, coin(delegated.u128(), "ujuno"))
+        .unwrap();
     assert_eq!(
         suite.query_delegated(user).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: Uint128::new(100),
+            total_staked: delegated.clone(),
             total_earnings: Uint128::zero(),
         }
     );
     assert_eq!(
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
-            amount: coin(100, "juno")
+            amount: coin(delegated.u128(), "ujuno")
         }
     );
 
-    let owner = suite.owner();
+    suite.advance_time(ONE_DAY);
 
-    // mock makes that every delegation reward is 1/10 of delegated tokens, so 10 tokens in this case
-    assert_eq!(suite.query_reward().unwrap(), coin(10, "juno"));
+    let owner = suite.owner();
+    let reward_amount = suite.query_reward().unwrap().amount;
+    let new_delegated = delegated + reward_amount;
+
+    assert_eq!(reward_amount.u128(), 208_219u128);
     suite.restake(owner.as_str()).unwrap();
     assert_eq!(
         suite.query_delegated(user).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: Uint128::new(110),
-            total_earnings: Uint128::new(10),
+            total_staked: new_delegated,
+            total_earnings: reward_amount,
         }
     );
     assert_eq!(
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
-            amount: coin(110, "juno")
+            amount: coin(new_delegated.u128(), "ujuno")
         }
     );
 
     // second time same operation, which accumulates previous reward
-    assert_eq!(
-        suite.query_reward().unwrap(),
-        coin(11, "juno") // 10% * 110 staked
-    );
+    suite.advance_time(ONE_DAY);
+
+    let reward_amount_2 = suite.query_reward().unwrap().amount;
+    let new_delegated = new_delegated + reward_amount_2;
+
+    assert_eq!(reward_amount_2.u128(), 208_652u128);
     suite.restake(owner.as_str()).unwrap();
     assert_eq!(
         suite.query_delegated(user).unwrap(),
         DelegateResponse {
             start_height: 12345,
-            total_staked: Uint128::new(121),
-            total_earnings: Uint128::new(21), // 10 + 11
+            total_staked: new_delegated,
+            total_earnings: reward_amount + reward_amount_2
         }
     );
     assert_eq!(
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
-            amount: coin(121, "juno")
+            amount: coin(new_delegated.u128(), "ujuno")
         }
     );
 }
@@ -77,29 +87,29 @@ fn multiple_users() {
     let user4 = "user4";
     let user5 = "user5";
     let mut suite = SuiteBuilder::new()
-        .with_funds(user1, &coins(10_000, "juno"))
-        .with_funds(user2, &coins(20_000, "juno"))
-        .with_funds(user3, &coins(30_000, "juno"))
-        .with_funds(user4, &coins(40_000, "juno"))
-        .with_funds(user5, &coins(50_000, "juno"))
+        .with_funds(user1, &coins(10_000, "ujuno"))
+        .with_funds(user2, &coins(20_000, "ujuno"))
+        .with_funds(user3, &coins(30_000, "ujuno"))
+        .with_funds(user4, &coins(40_000, "ujuno"))
+        .with_funds(user5, &coins(50_000, "ujuno"))
         .build();
 
-    suite.delegate(user1, coin(10_000, "juno")).unwrap();
-    suite.delegate(user2, coin(20_000, "juno")).unwrap();
-    suite.delegate(user3, coin(30_000, "juno")).unwrap();
-    suite.delegate(user4, coin(40_000, "juno")).unwrap();
-    suite.delegate(user5, coin(50_000, "juno")).unwrap();
+    suite.delegate(user1, coin(10_000, "ujuno")).unwrap();
+    suite.delegate(user2, coin(20_000, "ujuno")).unwrap();
+    suite.delegate(user3, coin(30_000, "ujuno")).unwrap();
+    suite.delegate(user4, coin(40_000, "ujuno")).unwrap();
+    suite.delegate(user5, coin(50_000, "ujuno")).unwrap();
     assert_eq!(
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
-            amount: coin(150_000, "juno")
+            amount: coin(150_000, "ujuno")
         }
     );
 
     let owner = suite.owner();
 
     // mock makes that every delegation reward is 1/10 of delegated tokens, so 15_000 tokens in this case
-    assert_eq!(suite.query_reward().unwrap(), coin(15_000, "juno"));
+    assert_eq!(suite.query_reward().unwrap(), coin(15_000, "ujuno"));
     suite.restake(owner.as_str()).unwrap();
     // user1 - 10_000 delegated / 150_000 total * 15_000 reward = 0.0666 * 15_000 = 999
     assert_eq!(
@@ -154,7 +164,7 @@ fn multiple_users() {
     assert_eq!(
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
-            amount: coin(150_000 + 14_996, "juno")
+            amount: coin(150_000 + 14_996, "ujuno")
         }
     );
 }
@@ -165,26 +175,26 @@ fn partial_user() {
     let user2 = "user2";
     let user_partial = "user_partial";
     let mut suite = SuiteBuilder::new()
-        .with_funds(user1, &coins(50_000, "juno"))
-        .with_funds(user2, &coins(30_000, "juno"))
-        .with_funds(user_partial, &coins(20_000, "juno"))
+        .with_funds(user1, &coins(50_000, "ujuno"))
+        .with_funds(user2, &coins(30_000, "ujuno"))
+        .with_funds(user_partial, &coins(20_000, "ujuno"))
         .build();
 
-    suite.delegate(user1, coin(50_000, "juno")).unwrap();
-    suite.delegate(user2, coin(30_000, "juno")).unwrap();
+    suite.delegate(user1, coin(50_000, "ujuno")).unwrap();
+    suite.delegate(user2, coin(30_000, "ujuno")).unwrap();
     assert_eq!(suite.query_last_payment_block().unwrap(), 12345);
 
     // advance by some arbitrary height
     suite.advance_height(500);
 
     // now add another user in middle of autocompound period
-    suite.delegate(user_partial, coin(20_000, "juno")).unwrap();
+    suite.delegate(user_partial, coin(20_000, "ujuno")).unwrap();
 
     // advance by same height as previously - partial user should count as 0.5
     suite.advance_height(500);
 
     // reward is hardcoded 10% of total staked, it doesn't matter
-    assert_eq!(suite.query_reward().unwrap(), coin(10_000, "juno"));
+    assert_eq!(suite.query_reward().unwrap(), coin(10_000, "ujuno"));
     suite.restake(suite.owner().as_str()).unwrap();
 
     // user weights
@@ -230,7 +240,7 @@ fn partial_user() {
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
             // again, lost one token due to rounding issues
-            amount: coin(100_000 + 9_999, "juno")
+            amount: coin(100_000 + 9_999, "ujuno")
         }
     );
 }
@@ -241,28 +251,28 @@ fn multiple_partial_users() {
     let user2 = "user2";
     let user3 = "user3";
     let mut suite = SuiteBuilder::new()
-        .with_funds(user1, &coins(50_000, "juno"))
-        .with_funds(user2, &coins(30_000, "juno"))
-        .with_funds(user3, &coins(80_000, "juno"))
+        .with_funds(user1, &coins(50_000, "ujuno"))
+        .with_funds(user2, &coins(30_000, "ujuno"))
+        .with_funds(user3, &coins(80_000, "ujuno"))
         .build();
 
     // advance by some arbitrary height (0.2 weight)
     suite.advance_height(200);
-    suite.delegate(user1, coin(50_000, "juno")).unwrap();
+    suite.delegate(user1, coin(50_000, "ujuno")).unwrap();
 
     // advance by some arbitrary height (0.6 weight)
     suite.advance_height(400);
-    suite.delegate(user2, coin(30_000, "juno")).unwrap();
+    suite.delegate(user2, coin(30_000, "ujuno")).unwrap();
 
     // advance by some arbitrary height (0.9 weight)
     suite.advance_height(300);
-    suite.delegate(user3, coin(80_000, "juno")).unwrap();
+    suite.delegate(user3, coin(80_000, "ujuno")).unwrap();
 
     // advance height so it evens out to total 1000 blocks advanced
     suite.advance_height(100);
 
     // reward is hardcoded 10% of total staked, it doesn't matter
-    assert_eq!(suite.query_reward().unwrap(), coin(16_000, "juno"));
+    assert_eq!(suite.query_reward().unwrap(), coin(16_000, "ujuno"));
     suite.restake(suite.owner().as_str()).unwrap();
 
     // user weights
@@ -307,7 +317,7 @@ fn multiple_partial_users() {
     assert_eq!(
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
-            amount: coin(160_000 + 16_000, "juno")
+            amount: coin(160_000 + 16_000, "ujuno")
         }
     );
 }
@@ -318,19 +328,19 @@ fn partial_user_become_full_after_restake() {
     let user2 = "user2";
     let user3 = "user3";
     let mut suite = SuiteBuilder::new()
-        .with_funds(user1, &coins(40_000, "juno"))
-        .with_funds(user2, &coins(30_000, "juno"))
-        .with_funds(user3, &coins(35_000, "juno"))
+        .with_funds(user1, &coins(40_000, "ujuno"))
+        .with_funds(user2, &coins(30_000, "ujuno"))
+        .with_funds(user3, &coins(35_000, "ujuno"))
         .build();
 
     // advance by some arbitrary height (0.2 weight)
     suite.advance_height(200);
-    suite.delegate(user1, coin(40_000, "juno")).unwrap();
+    suite.delegate(user1, coin(40_000, "ujuno")).unwrap();
     // advance height up to 1000 blocks
     suite.advance_height(800);
 
     // hardcoded 10% of delegated amount
-    assert_eq!(suite.query_reward().unwrap(), coin(4_000, "juno"));
+    assert_eq!(suite.query_reward().unwrap(), coin(4_000, "ujuno"));
     suite.restake(suite.owner().as_str()).unwrap();
 
     // user1 was lone delegator so whole reward goes to him anyway
@@ -346,16 +356,16 @@ fn partial_user_become_full_after_restake() {
     assert_eq!(
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
-            amount: coin(44_000, "juno")
+            amount: coin(44_000, "ujuno")
         }
     );
     suite.advance_height(300);
-    suite.delegate(user2, coin(30_000, "juno")).unwrap();
+    suite.delegate(user2, coin(30_000, "ujuno")).unwrap();
     // advance height up to 1000 blocks
     suite.advance_height(700);
 
     // hardcoded 10% of delegated amount
-    assert_eq!(suite.query_reward().unwrap(), coin(4_400 + 3_000, "juno"));
+    assert_eq!(suite.query_reward().unwrap(), coin(4_400 + 3_000, "ujuno"));
     suite.restake(suite.owner().as_str()).unwrap();
 
     // user weights
@@ -389,16 +399,16 @@ fn partial_user_become_full_after_restake() {
     assert_eq!(
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
-            amount: coin(81_399, "juno")
+            amount: coin(81_399, "ujuno")
         }
     );
     suite.advance_height(400);
-    suite.delegate(user3, coin(35_000, "juno")).unwrap();
+    suite.delegate(user3, coin(35_000, "ujuno")).unwrap();
     // advance height up to 1000 blocks
     suite.advance_height(600);
 
     // hardcoded 10% of delegated amount
-    assert_eq!(suite.query_reward().unwrap(), coin(8_140 + 3_500, "juno"));
+    assert_eq!(suite.query_reward().unwrap(), coin(8_140 + 3_500, "ujuno"));
     suite.restake(suite.owner().as_str()).unwrap();
 
     // user weights
@@ -445,7 +455,7 @@ fn partial_user_become_full_after_restake() {
         suite.query_total_delegated().unwrap(),
         TotalDelegatedResponse {
             // old total amount + 35k delegated last round + 11_640 last reward minus rounding issue
-            amount: coin(81_399 + 35_000 + 11_639, "juno")
+            amount: coin(81_399 + 35_000 + 11_639, "ujuno")
         }
     );
 }

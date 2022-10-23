@@ -16,18 +16,14 @@ library = []
 cosmwasm-std = { version = "1.1", features = ["staking"] }
 cosmwasm-schema = "1.1"
 cosmwasm-storage = "1.1"
-cw-storage-plus = "0.15"
-cw2 = "0.15"
-cw-utils = "0.15"
+cw-storage-plus = "0.16"
+cw2 = "0.16"
+cw-utils = "0.16"
 schemars = "0.8"
-cw20-base = {  version = "0.15", features = ["library"] }
-serde = { version = "1.0", default-features = false, features = ["derive"] }
-thiserror = "1.0"
+cw20-base = {  version = "0.16", features = ["library"] }
+serde = { version = "1", default-features = false, features = ["derive"] }
+thiserror = "1"
 
 [dev-dependencies]
 anyhow = "1"
-# cw-multi-test = "0.14"
-## Use custom version of multi-test module that implements Staking and Distribution modules,
-## required to test delegation and withdraw_reward
-## https://github.com/CosmWasm/cw-plus/pull/782
-cw-multi-test = { git = "https://github.com/CosmWasm/cw-plus", rev = "33bb3c76dd187d84cea400917e507e37b281598a" }
+cw-multi-test = "0.16"

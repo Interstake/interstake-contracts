@@ -2,8 +2,10 @@ use anyhow::Result as AnyResult;
 use schemars::JsonSchema;
 use std::fmt;
 
-use cosmwasm_std::{coin, Addr, BlockInfo, Coin, Decimal};
-use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
+use cosmwasm_std::{coin, Addr, BlockInfo, Coin, Decimal, Validator};
+use cw_multi_test::{
+    App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor, StakingInfo,
+};
 
 use crate::msg::{
     ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
@@ -28,6 +30,7 @@ pub struct SuiteBuilder {
     pub owner: String,
     pub staking_addr: String,
     pub team_commision: Option<Decimal>,
+    pub validator_commission: Decimal,
     pub funds: Vec<(Addr, Vec<Coin>)>,
     pub denom: String,
 }
@@ -38,8 +41,9 @@ impl SuiteBuilder {
             owner: "owner".to_owned(),
             staking_addr: "staking".to_owned(),
             team_commision: None,
+            validator_commission: Decimal::percent(5),
             funds: vec![],
-            denom: "juno".to_owned(),
+            denom: "ujuno".to_owned(),
         }
     }
 
@@ -52,24 +56,39 @@ impl SuiteBuilder {
     #[track_caller]
     pub fn build(self) -> Suite {
         let owner = Addr::unchecked(self.owner.clone());
-
         let funds = self.funds;
-        let mut app: App = AppBuilder::new().build(|router, _, storage| {
-            for (addr, coin) in funds {
-                router.bank.init_balance(storage, &addr, coin).unwrap();
-            }
-            // FIXME: Dirty hack - prepare some tokens for contract to send back in undelegate scenarios
-            // Proper solutions needs to be supplied in multi-test staking module
-            // https://github.com/CosmWasm/cw-plus/pull/782
+
+        let mut app: App = App::default();
+
+        let valoper1 = Validator {
+            address: self.staking_addr.clone(),
+            commission: self.validator_commission,
+            max_commission: Decimal::percent(100),
+            max_change_rate: Decimal::percent(1),
+        };
+        let staking_info = StakingInfo {
+            bonded_denom: "ujuno".to_string(),
+            unbonding_time: 60,
+            apr: Decimal::percent(80),
+        };
+
+        let block_info = app.block_info();
+        // Use init_modules to setup some initial validator with a stake
+        app.init_modules(|router, api, storage| -> AnyResult<()> {
+            router.staking.setup(storage, staking_info).unwrap();
+
             router
-                .bank
-                .init_balance(
-                    storage,
-                    &Addr::unchecked("contract0"),
-                    vec![coin(1000, "juno")],
-                )
+                .staking
+                .add_validator(api, storage, &block_info, valoper1)
                 .unwrap();
-        });
+
+            funds.into_iter().for_each(|(address, coins)| {
+                router.bank.init_balance(storage, &address, coins).unwrap()
+            });
+
+            Ok(())
+        })
+        .unwrap();
 
         let yield_generator_id = app.store_code(contract_yield_generator());
         let yield_generator_contract = app
