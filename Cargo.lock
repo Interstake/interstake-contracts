@@ -469,6 +469,7 @@ dependencies = [
  "cw2",
  "cw20-base",
  "schemars",
+ "semver",
  "serde",
  "thiserror",
 ]

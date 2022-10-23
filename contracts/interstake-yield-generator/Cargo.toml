@@ -18,9 +18,10 @@ cosmwasm-schema = "1.1"
 cosmwasm-storage = "1.1"
 cw-storage-plus = "0.16"
 cw2 = "0.16"
+cw20-base = {  version = "0.16", features = ["library"] }
 cw-utils = "0.16"
 schemars = "0.8"
-cw20-base = {  version = "0.16", features = ["library"] }
+semver = "1"
 serde = { version = "1", default-features = false, features = ["derive"] }
 thiserror = "1"
 
