@@ -28,7 +28,7 @@ coverage:
   script:
   - rustup override set nightly
   - cargo install cargo-tarpaulin
-  - cargo tarpaulin -v --all-features --force-clean --offline
+  - cargo tarpaulin --workspace --timeout 120
 
 lint:
   stage: build
