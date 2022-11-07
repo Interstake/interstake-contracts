@@ -96,7 +96,7 @@ pub fn execute(
         ExecuteMsg::Transfer { recipient, amount } => {
             execute::transfer(deps, env, info.sender, recipient, amount)
         }
-        ExecuteMsg::UndelegateAll {} => todo!(),
+        ExecuteMsg::UndelegateAll {} => execute::undelegate_all(deps, env, info),
     }
 }
 
@@ -428,6 +428,59 @@ mod execute {
             .add_attribute("amount", amount)
             .add_attribute("sender", &sender)
             .add_attribute("recipient", &recipient))
+    }
+
+    pub fn undelegate_all(
+        deps: DepsMut,
+        env: Env,
+        info: MessageInfo,
+    ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+
+        let mut stake_details = STAKE_DETAILS
+            .load(deps.storage, &info.sender)
+            .map_err(|_| ContractError::DelegationNotFound {})?;
+
+        // Undelegate all tokens
+        stake_details.consolidate_partials(deps.storage)?;
+        let amount = stake_details.total.clone();
+
+        let undelegate_msg = StakingMsg::Undelegate {
+            validator: CONFIG.load(deps.storage)?.staking_addr,
+            amount: amount.clone(),
+        };
+
+        TOTAL.update(deps.storage, |total| -> StdResult<_> {
+            Ok(coin((total.amount - amount.amount).u128(), total.denom))
+        })?;
+
+        let release_timestamp = env
+            .block
+            .time
+            .plus_seconds(config.unbonding_period.seconds());
+        UNBONDING_CLAIMS.update(deps.storage, &info.sender, |claims| -> StdResult<_> {
+            let mut claims = claims.unwrap_or_default();
+            claims.push(ClaimDetails {
+                amount: amount.clone(),
+                release_timestamp,
+            });
+            Ok(claims)
+        })?;
+
+        // updates or removes stake details
+        if stake_details.partials.is_empty() {
+            STAKE_DETAILS.remove(deps.storage, &info.sender);
+        } else {
+            STAKE_DETAILS.save(deps.storage, &info.sender, &stake_details)?;
+        }
+
+        Ok(Response::new()
+            .add_attribute("action", "undelegate")
+            .add_attribute("validator", &config.staking_addr)
+            .add_attribute("sender", &info.sender)
+            .add_attribute("amount", amount.amount)
+            .add_attribute("release_timestamp", release_timestamp.to_string())
+            .add_message(undelegate_msg))
     }
 }
 
