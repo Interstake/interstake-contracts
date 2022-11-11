@@ -157,7 +157,7 @@ mod execute {
 
         let mut sum = Decimal::zero();
         for (validator, weight) in validators.iter() {
-            sum = sum + weight;
+            sum += weight;
             deps.api.addr_validate(validator)?;
         }
 
@@ -167,7 +167,7 @@ mod execute {
 
         VALIDATOR_LIST.clear(deps.storage);
         for (validator, weight) in validators.iter() {
-            VALIDATOR_LIST.save(deps.storage, &Addr::unchecked(validator), &weight)?;
+            VALIDATOR_LIST.save(deps.storage, &Addr::unchecked(validator), weight)?;
         }
 
         Ok(Response::new().add_attribute("action", "validator_list_updated"))
@@ -207,7 +207,7 @@ mod execute {
         Ok(Response::new()
             .add_attribute("action", "delegate")
             // With multiple validators this is inconvenient and this will already be in the result of the staking messages
-            .add_attribute("validator", &config.staking_addr)
+            .add_attribute("validator", config.staking_addr)
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_messages(msgs))
@@ -390,8 +390,8 @@ mod execute {
                 let stakes_reward = weight / sum_of_weights * reward.amount; // TODO: Modify that by checking properly denom; later
                 sum_of_rewards += stakes_reward;
                 if let Some(stake_detail) = stakes.get_mut(&addr) {
-                    (*stake_detail).earnings += stakes_reward;
-                    (*stake_detail).total.amount += stakes_reward;
+                    stake_detail.earnings += stakes_reward;
+                    stake_detail.total.amount += stakes_reward;
                     STAKE_DETAILS.save(deps.storage, &addr, stake_detail)?;
                 }
                 Ok(())
@@ -584,7 +584,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 }
 
 mod utils {
-    use cosmwasm_std::{CosmosMsg, Fraction, Order::Ascending};
+    use cosmwasm_std::{Fraction, Order::Ascending};
 
     use crate::state::VALIDATOR_LIST;
 
@@ -599,31 +599,27 @@ mod utils {
         let coin_amount = amount.amount;
         let denom = amount.denom;
 
-        for validator in VALIDATOR_LIST
-            .range(deps.storage, None, None, Ascending)
-            .into_iter()
-        {
+        for validator in VALIDATOR_LIST.range(deps.storage, None, None, Ascending) {
             let (val_addr, percentage) = validator.unwrap();
             let stake_amount =
                 coin_amount.multiply_ratio(percentage.numerator(), percentage.denominator());
-            let stake_msg: StakingMsg;
-            if delegate {
-                stake_msg = StakingMsg::Delegate {
+            let stake_msg: StakingMsg = if delegate {
+                StakingMsg::Delegate {
                     validator: val_addr.to_string(),
                     amount: Coin {
                         denom: denom.clone(),
                         amount: stake_amount,
                     },
-                };
+                }
             } else {
-                stake_msg = StakingMsg::Undelegate {
+                StakingMsg::Undelegate {
                     validator: val_addr.to_string(),
                     amount: Coin {
                         denom: denom.clone(),
                         amount: stake_amount,
                     },
-                };
-            }
+                }
+            };
             msgs.push(stake_msg);
         }
         Ok(msgs)
