@@ -63,6 +63,10 @@ pub enum QueryMsg {
     /// Last payment block height
     #[returns(LastPaymentBlockResponse)]
     LastPaymentBlock {},
+    #[returns(ValidatorsResponse)]
+    ValidatorList {},
+    #[returns(ValidatorResponse)]
+    Validator { validator: String },
 }
 
 #[cw_serde]
@@ -103,4 +107,14 @@ pub struct TotalDelegatedResponse {
 #[cw_serde]
 pub struct LastPaymentBlockResponse {
     pub last_payment_block: u64,
+}
+
+#[cw_serde]
+pub struct ValidatorsResponse {
+    pub validators: Vec<(String, Decimal)>,
+}
+
+#[cw_serde]
+pub struct ValidatorResponse {
+    pub weight: Decimal,
 }

@@ -462,10 +462,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query::claims(deps, sender)?)
         }
         QueryMsg::LastPaymentBlock {} => to_binary(&query::last_payment_block(deps)?),
+        QueryMsg::Validator { validator } => to_binary(&query::validator(deps, validator)?),
+        QueryMsg::ValidatorList {} => to_binary(&query::validator_list(deps)?),
     }
 }
 
 mod query {
+
+    use crate::{
+        msg::{ValidatorResponse, ValidatorsResponse},
+        state::VALIDATOR_LIST,
+    };
+    use cosmwasm_std::Order::Ascending;
+
     use super::*;
 
     pub fn config(deps: Deps) -> StdResult<ConfigResponse> {
@@ -545,6 +554,24 @@ mod query {
         Ok(LastPaymentBlockResponse {
             last_payment_block: LAST_PAYMENT_BLOCK.load(deps.storage)?,
         })
+    }
+
+    pub fn validator_list(deps: Deps) -> StdResult<ValidatorsResponse> {
+        let validators = VALIDATOR_LIST
+            .range(deps.storage, None, None, Ascending)
+            .into_iter()
+            .map(|pair| {
+                let (key, value) = pair.unwrap();
+                (key.to_string(), value)
+            })
+            .collect();
+
+        Ok(ValidatorsResponse { validators })
+    }
+
+    pub fn validator(deps: Deps, validator: String) -> StdResult<ValidatorResponse> {
+        let weight = VALIDATOR_LIST.load(deps.storage, &deps.api.addr_validate(&validator)?)?;
+        Ok(ValidatorResponse { weight })
     }
 }
 
