@@ -104,7 +104,7 @@ pub fn execute(
 }
 
 mod execute {
-    use super::*;
+    use super::{utils::delegate_msgs_for_validators, *};
 
     pub fn update_config(
         deps: DepsMut,
@@ -149,10 +149,7 @@ mod execute {
 
         let amount = info.funds[0].clone();
 
-        let msg = StakingMsg::Delegate {
-            validator: config.staking_addr.to_string(),
-            amount: amount.clone(),
-        };
+        let msgs = delegate_msgs_for_validators(deps.as_ref(), amount.clone(), true)?;
 
         let stake = Stake {
             amount: amount.clone(),
@@ -177,10 +174,11 @@ mod execute {
 
         Ok(Response::new()
             .add_attribute("action", "delegate")
+            // With multiple validators this is inconvenient and this will already be in the result of the staking messages
             .add_attribute("validator", &config.staking_addr)
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
-            .add_message(msg))
+            .add_messages(msgs))
     }
 
     pub fn undelegate(
@@ -195,6 +193,7 @@ mod execute {
             .load(deps.storage, &info.sender)
             .map_err(|_| ContractError::DelegationNotFound {})?;
 
+        // TODO: Check if the total amount is equal to zero -> remove entry from memory
         stake_details.consolidate_partials(deps.storage)?;
         stake_details.total.amount = stake_details
             .total
@@ -205,10 +204,7 @@ mod execute {
                 have: stake_details.total.amount,
             })?;
 
-        let msg = StakingMsg::Undelegate {
-            validator: config.staking_addr.to_string(),
-            amount: amount.clone(),
-        };
+        let msgs = delegate_msgs_for_validators(deps.as_ref(), amount.clone(), false)?;
 
         TOTAL.update(deps.storage, |total| -> StdResult<_> {
             Ok(coin((total.amount - amount.amount).u128(), total.denom))
@@ -237,7 +233,7 @@ mod execute {
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_attribute("release_timestamp", release_timestamp.to_string())
-            .add_message(msg))
+            .add_messages(msgs))
     }
 
     pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
@@ -526,4 +522,52 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     migrate_config(deps, &storage_version)?;
     Ok(Response::new())
+}
+
+mod utils {
+    use cosmwasm_std::{CosmosMsg, Fraction, Order::Ascending};
+
+    use crate::state::VALIDATOR_LIST;
+
+    use super::*;
+
+    pub fn delegate_msgs_for_validators(
+        deps: Deps,
+        amount: Coin,
+        delegate: bool,
+    ) -> StdResult<Vec<StakingMsg>> {
+        let mut msgs = vec![];
+        let coin_amount = amount.amount;
+        let denom = amount.denom;
+
+        for validator in VALIDATOR_LIST
+            .range(deps.storage, None, None, Ascending)
+            .into_iter()
+        {
+            if let (val_addr, Some(percentage)) = validator.unwrap() {
+                let stake_amount =
+                    coin_amount.multiply_ratio(percentage.numerator(), percentage.denominator());
+                let stake_msg: StakingMsg;
+                if delegate {
+                    stake_msg = StakingMsg::Delegate {
+                        validator: val_addr.to_string(),
+                        amount: Coin {
+                            denom: denom.clone(),
+                            amount: stake_amount,
+                        },
+                    };
+                } else {
+                    stake_msg = StakingMsg::Undelegate {
+                        validator: val_addr.to_string(),
+                        amount: Coin {
+                            denom: denom.clone(),
+                            amount: stake_amount,
+                        },
+                    };
+                }
+                msgs.push(stake_msg);
+            }
+        }
+        Ok(msgs)
+    }
 }
