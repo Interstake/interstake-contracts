@@ -92,6 +92,9 @@ pub fn execute(
             team_commision,
             unbonding_period,
         ),
+        ExecuteMsg::UpdateValidatorList { validators } => {
+            execute::update_validator_list(deps, info, validators)
+        }
         ExecuteMsg::Delegate {} => execute::delegate(deps, env, info),
         ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
         ExecuteMsg::Claim {} => execute::claim(deps, env, info),
@@ -104,6 +107,8 @@ pub fn execute(
 }
 
 mod execute {
+    use crate::state::VALIDATOR_LIST;
+
     use super::{utils::delegate_msgs_for_validators, *};
 
     pub fn update_config(
@@ -140,6 +145,33 @@ mod execute {
         Ok(Response::new().add_attribute("action", "config_updated"))
     }
 
+    pub fn update_validator_list(
+        deps: DepsMut,
+        info: MessageInfo,
+        validators: Vec<(String, Decimal)>,
+    ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        if info.sender != config.owner {
+            return Err(ContractError::Unauthorized {});
+        }
+
+        let mut sum = Decimal::zero();
+        for (validator, weight) in validators.iter() {
+            sum = sum + weight;
+            deps.api.addr_validate(validator)?;
+        }
+
+        if sum != Decimal::one() {
+            return Err(ContractError::InvalidValidatorList {});
+        }
+
+        VALIDATOR_LIST.clear(deps.storage);
+        for (validator, weight) in validators.iter() {
+            VALIDATOR_LIST.save(deps.storage, &Addr::unchecked(validator), &weight)?;
+        }
+
+        Ok(Response::new().add_attribute("action", "validator_list_updated"))
+    }
     pub fn delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
 
@@ -544,29 +576,28 @@ mod utils {
             .range(deps.storage, None, None, Ascending)
             .into_iter()
         {
-            if let (val_addr, Some(percentage)) = validator.unwrap() {
-                let stake_amount =
-                    coin_amount.multiply_ratio(percentage.numerator(), percentage.denominator());
-                let stake_msg: StakingMsg;
-                if delegate {
-                    stake_msg = StakingMsg::Delegate {
-                        validator: val_addr.to_string(),
-                        amount: Coin {
-                            denom: denom.clone(),
-                            amount: stake_amount,
-                        },
-                    };
-                } else {
-                    stake_msg = StakingMsg::Undelegate {
-                        validator: val_addr.to_string(),
-                        amount: Coin {
-                            denom: denom.clone(),
-                            amount: stake_amount,
-                        },
-                    };
-                }
-                msgs.push(stake_msg);
+            let (val_addr, percentage) = validator.unwrap();
+            let stake_amount =
+                coin_amount.multiply_ratio(percentage.numerator(), percentage.denominator());
+            let stake_msg: StakingMsg;
+            if delegate {
+                stake_msg = StakingMsg::Delegate {
+                    validator: val_addr.to_string(),
+                    amount: Coin {
+                        denom: denom.clone(),
+                        amount: stake_amount,
+                    },
+                };
+            } else {
+                stake_msg = StakingMsg::Undelegate {
+                    validator: val_addr.to_string(),
+                    amount: Coin {
+                        denom: denom.clone(),
+                        amount: stake_amount,
+                    },
+                };
             }
+            msgs.push(stake_msg);
         }
         Ok(msgs)
     }

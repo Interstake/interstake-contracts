@@ -26,6 +26,8 @@ pub enum ExecuteMsg {
         team_commision: Option<TeamCommision>,
         unbonding_period: Option<u64>,
     },
+    /// Updates the list of validators that will be used for staking
+    UpdateValidatorList { validators: Vec<(String, Decimal)> },
     /// Adds amount of tokens to common staking pool
     Delegate {},
     /// Undelegates currently staked portion of token
