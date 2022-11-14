@@ -64,8 +64,8 @@ pub enum QueryMsg {
     LastPaymentBlock {},
     #[returns(ValidatorsResponse)]
     ValidatorList {},
-    #[returns(ValidatorResponse)]
-    Validator { validator: String },
+    #[returns(ValidatorWeightResponse)]
+    ValidatorWeight { validator: String },
 }
 
 #[cw_serde]
@@ -114,6 +114,6 @@ pub struct ValidatorsResponse {
 }
 
 #[cw_serde]
-pub struct ValidatorResponse {
+pub struct ValidatorWeightResponse {
     pub weight: Decimal,
 }
