@@ -52,7 +52,7 @@ fn one_user(validators: Vec<(String, Decimal)>) {
 
     // Default validator commision is 5%, APR is 80%
     // 100_000_000 * 0.95 * 0.8 * (1/365) = 208_218.72
-    assert_eq!(reward_amount.u128(), 208_219u128);
+    assert_approx_eq!(reward_amount.u128(), 208_219u128, "0.00001");
     suite.restake(owner.as_str()).unwrap();
     assert_eq!(
         suite.query_delegated(user).unwrap(),
@@ -162,7 +162,7 @@ fn multiple_users(validators: Vec<(String, Decimal)>) {
     let owner = suite.owner();
     let reward_amount = suite.query_reward().unwrap().amount;
 
-    assert_eq!(reward_amount.u128(), 3_123_287u128);
+    assert_approx_eq!(reward_amount.u128(), 3_123_287u128, "0.00001");
     suite.restake(owner.as_str()).unwrap();
 
     // weight = 100_000_000 / 1_500_000_000

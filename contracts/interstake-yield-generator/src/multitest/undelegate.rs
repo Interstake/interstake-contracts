@@ -1,14 +1,28 @@
-use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
+use super::suite::{single_validator, two_validators, SuiteBuilder, TWENTY_EIGHT_DAYS};
 
-use cosmwasm_std::{coin, coins, Uint128};
+use cosmwasm_std::{coin, coins, Decimal, Uint128};
 
 use crate::error::ContractError;
 use crate::msg::DelegateResponse;
 use crate::state::ClaimDetails;
 
 #[test]
-fn undelegate_without_delegation() {
+fn undelegate_without_delegation_single_validator() {
+    undelegate_without_delegation(single_validator());
+}
+
+#[test]
+fn undelegate_without_delegation_two_validators() {
+    undelegate_without_delegation(two_validators());
+}
+
+fn undelegate_without_delegation(validator_list: Vec<(String, Decimal)>) {
     let mut suite = SuiteBuilder::new().build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validator_list)
+        .unwrap();
+
     let err = suite
         .undelegate("random_user", coin(1, "ujuno"))
         .unwrap_err();
@@ -19,11 +33,23 @@ fn undelegate_without_delegation() {
 }
 
 #[test]
-fn create_basic_claim() {
+fn create_basic_claim_single_validator() {
+    create_basic_claim(single_validator());
+}
+
+#[test]
+fn create_basic_claim_two_validators() {
+    create_basic_claim(two_validators());
+}
+
+fn create_basic_claim(validator_list: Vec<(String, Decimal)>) {
     let user = "user";
     let mut suite = SuiteBuilder::new()
         .with_funds(user, &coins(100, "ujuno"))
         .build();
+    suite
+        .update_validator_list(suite.owner().as_str(), validator_list)
+        .unwrap();
 
     suite.delegate(user, coin(100, "ujuno")).unwrap();
     assert_eq!(
