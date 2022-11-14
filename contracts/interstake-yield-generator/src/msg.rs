@@ -22,7 +22,6 @@ pub enum ExecuteMsg {
     /// Only called by owner
     UpdateConfig {
         owner: Option<String>,
-        staking_addr: Option<String>,
         team_commision: Option<TeamCommision>,
         unbonding_period: Option<u64>,
     },

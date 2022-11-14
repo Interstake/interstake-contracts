@@ -17,7 +17,7 @@ use crate::msg::{
 };
 use crate::state::{
     ClaimDetails, Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK,
-    STAKE_DETAILS, TOTAL, UNBONDING_CLAIMS,
+    STAKE_DETAILS, TOTAL, UNBONDING_CLAIMS, VALIDATOR_LIST,
 };
 
 use std::collections::HashMap;
@@ -50,12 +50,14 @@ pub fn instantiate(
 
     let config = Config {
         owner: owner.clone(),
-        staking_addr: msg.staking_addr.clone(),
         team_commision,
         denom: msg.denom.clone(),
         unbonding_period,
     };
     CONFIG.save(deps.storage, &config)?;
+
+    let val_addr = deps.api.addr_validate(&msg.staking_addr)?;
+    VALIDATOR_LIST.save(deps.storage, &val_addr, &Decimal::one())?;
 
     // Initialize last payment block
     LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
@@ -81,17 +83,9 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig {
             owner,
-            staking_addr,
             team_commision,
             unbonding_period,
-        } => execute::update_config(
-            deps,
-            info,
-            owner,
-            staking_addr,
-            team_commision,
-            unbonding_period,
-        ),
+        } => execute::update_config(deps, info, owner, team_commision, unbonding_period),
         ExecuteMsg::UpdateValidatorList { validators } => {
             execute::update_validator_list(deps, info, validators)
         }
@@ -109,13 +103,15 @@ pub fn execute(
 mod execute {
     use crate::state::VALIDATOR_LIST;
 
-    use super::{utils::delegate_msgs_for_validators, *};
+    use super::{
+        utils::{delegate_msgs_for_validators, distribute_msgs_for_validators},
+        *,
+    };
 
     pub fn update_config(
         deps: DepsMut,
         info: MessageInfo,
         new_owner: Option<String>,
-        new_staking_addr: Option<String>,
         new_team_commision: Option<TeamCommision>,
         new_unbonding_period: Option<u64>,
     ) -> Result<Response, ContractError> {
@@ -127,10 +123,6 @@ mod execute {
         if let Some(owner) = new_owner {
             let owner = deps.api.addr_validate(&owner)?;
             config.owner = owner;
-        }
-
-        if let Some(staking_addr) = new_staking_addr {
-            config.staking_addr = staking_addr;
         }
 
         if let Some(team_commision) = new_team_commision {
@@ -207,7 +199,6 @@ mod execute {
         Ok(Response::new()
             .add_attribute("action", "delegate")
             // With multiple validators this is inconvenient and this will already be in the result of the staking messages
-            .add_attribute("validator", config.staking_addr)
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_messages(msgs))
@@ -261,7 +252,6 @@ mod execute {
 
         Ok(Response::new()
             .add_attribute("action", "undelegate")
-            .add_attribute("validator", &config.staking_addr)
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_attribute("release_timestamp", release_timestamp.to_string())
@@ -342,9 +332,7 @@ mod execute {
             TeamCommision::None => reward,
         };
 
-        let reward_msg = DistributionMsg::WithdrawDelegatorReward {
-            validator: config.staking_addr.to_string(),
-        };
+        let reward_msgs = distribute_msgs_for_validators(deps.as_ref())?;
 
         let last_payment_block = LAST_PAYMENT_BLOCK.load(deps.storage)?;
 
@@ -397,10 +385,7 @@ mod execute {
                 Ok(())
             })?;
 
-        let delegate_msg = StakingMsg::Delegate {
-            validator: config.staking_addr,
-            amount: reward.clone(),
-        };
+        let delegate_msgs = delegate_msgs_for_validators(deps.as_ref(), reward, true)?;
 
         // Update last payment height with current height
         LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
@@ -413,8 +398,8 @@ mod execute {
         Ok(Response::new()
             .add_attribute("action", "restake")
             .add_attribute("amount", reward.amount)
-            .add_message(reward_msg)
-            .add_message(delegate_msg))
+            .add_messages(reward_msgs)
+            .add_messages(delegate_msgs))
     }
 
     pub fn transfer(
@@ -524,22 +509,31 @@ mod query {
             CONFIG.load(deps.storage)?
         };
 
-        let mut reward_response = RewardResponse { rewards: vec![] };
+        let mut rewards: Vec<Coin> = vec![];
 
-        // Query reward
-        let delegation_response: DelegationResponse =
-            deps.querier
-                .query(&QueryRequest::Staking(StakingQuery::Delegation {
-                    delegator: env.contract.address.to_string(),
-                    validator: config.staking_addr,
-                }))?;
-        let delegation = if let Some(delegation) = delegation_response.delegation {
-            delegation
-        } else {
-            return Ok(reward_response);
+        for data in VALIDATOR_LIST.range(deps.storage, None, None, Ascending) {
+            let (validator, weight) = data?;
+            let delegation_response: DelegationResponse =
+                deps.querier
+                    .query(&QueryRequest::Staking(StakingQuery::Delegation {
+                        delegator: env.contract.address.to_string(),
+                        validator: validator.to_string(),
+                    }))?;
+            if let Some(delegation) = delegation_response.delegation {
+                // TODO: Check if reward is proper one and in Juno
+                rewards.append(&mut delegation.accumulated_rewards);
+            }
+        }
+
+        let mut reward = coin(0, config.denom);
+        for r in rewards {
+            if r.denom == reward.denom {
+                reward.amount += r.amount;
+            }
+        }
+        let reward_response = RewardResponse {
+            rewards: vec![reward],
         };
-
-        reward_response.rewards = delegation.accumulated_rewards; // TODO: Check if reward is proper one and in Juno
         Ok(reward_response)
     }
 
@@ -621,6 +615,18 @@ mod utils {
                 }
             };
             msgs.push(stake_msg);
+        }
+        Ok(msgs)
+    }
+
+    pub fn distribute_msgs_for_validators(deps: Deps) -> StdResult<Vec<DistributionMsg>> {
+        let mut msgs = vec![];
+        for validator in VALIDATOR_LIST.range(deps.storage, None, None, Ascending) {
+            let (val_addr, _) = validator.unwrap();
+            let distribute_msg = DistributionMsg::WithdrawDelegatorReward {
+                validator: val_addr.to_string(),
+            };
+            msgs.push(distribute_msg);
         }
         Ok(msgs)
     }
