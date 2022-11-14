@@ -30,7 +30,7 @@ pub enum ContractError {
     )]
     NotEnoughToUndelegate { wanted: Uint128, have: Uint128 },
 
-    #[error("validator weights do not sum to 1")]
+    #[error("Validators weights do not sum to 1.0")]
     InvalidValidatorList {},
 
     #[error("Delegation not found")]
