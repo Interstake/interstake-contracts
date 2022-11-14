@@ -23,7 +23,7 @@ fn one_user(validators: Vec<(String, Decimal)>) {
         .with_funds(user, &coins(delegated.u128(), "ujuno"))
         .build();
     suite
-        .update_validator_list(suite.owner().as_str(), validators.clone())
+        .update_validator_list(suite.owner().as_str(), validators)
         .unwrap();
 
     suite

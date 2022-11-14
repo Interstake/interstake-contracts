@@ -148,25 +148,21 @@ mod execute {
         }
 
         let mut sum = Decimal::zero();
+
+        VALIDATOR_LIST.clear(deps.storage);
         for (validator, weight) in validators.iter() {
             sum += weight;
-            deps.api.addr_validate(validator)?;
+            VALIDATOR_LIST.save(deps.storage, &deps.api.addr_validate(validator)?, weight)?;
         }
 
         if sum != Decimal::one() {
             return Err(ContractError::InvalidValidatorList {});
         }
 
-        VALIDATOR_LIST.clear(deps.storage);
-        for (validator, weight) in validators.iter() {
-            VALIDATOR_LIST.save(deps.storage, &Addr::unchecked(validator), weight)?;
-        }
-
         Ok(Response::new().add_attribute("action", "validator_list_updated"))
     }
-    pub fn delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-        let _config = CONFIG.load(deps.storage)?;
 
+    pub fn delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
         if info.funds.len() != 1 {
             return Err(ContractError::NoFunds {});
         }
