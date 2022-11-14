@@ -385,7 +385,7 @@ mod execute {
                 Ok(())
             })?;
 
-        let delegate_msgs = delegate_msgs_for_validators(deps.as_ref(), reward, true)?;
+        let delegate_msgs = delegate_msgs_for_validators(deps.as_ref(), reward.clone(), true)?;
 
         // Update last payment height with current height
         LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
@@ -519,7 +519,7 @@ mod query {
                         delegator: env.contract.address.to_string(),
                         validator: validator.to_string(),
                     }))?;
-            if let Some(delegation) = delegation_response.delegation {
+            if let Some(mut delegation) = delegation_response.delegation {
                 // TODO: Check if reward is proper one and in Juno
                 rewards.append(&mut delegation.accumulated_rewards);
             }

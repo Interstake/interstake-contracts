@@ -114,7 +114,6 @@ impl SuiteBuilder {
             app,
             owner,
             contract: yield_generator_contract,
-            staking: self.staking_addr,
         }
     }
 }
@@ -123,16 +122,11 @@ pub struct Suite {
     pub app: App,
     owner: Addr,
     contract: Addr,
-    staking: String,
 }
 
 impl Suite {
     pub fn owner(&self) -> Addr {
         self.owner.clone()
-    }
-
-    pub fn staking(&self) -> String {
-        self.staking.clone()
     }
 
     pub fn advance_height(&mut self, blocks: u64) {
@@ -158,7 +152,6 @@ impl Suite {
         &mut self,
         sender: &str,
         owner: impl Into<Option<String>>,
-        staking_addr: impl Into<Option<String>>,
         team_commision: impl Into<Option<TeamCommision>>,
         unbonding_period: impl Into<Option<u64>>,
     ) -> AnyResult<AppResponse> {
@@ -167,7 +160,6 @@ impl Suite {
             self.contract.clone(),
             &ExecuteMsg::UpdateConfig {
                 owner: owner.into(),
-                staking_addr: staking_addr.into(),
                 team_commision: team_commision.into(),
                 unbonding_period: unbonding_period.into(),
             },
