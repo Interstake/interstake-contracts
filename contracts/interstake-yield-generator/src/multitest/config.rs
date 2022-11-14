@@ -1,4 +1,4 @@
-use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
+use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS, VALIDATOR_1, VALIDATOR_2};
 
 use cosmwasm_std::{Addr, Decimal, Timestamp};
 
@@ -90,4 +90,35 @@ fn proper_update() {
         .update_config(owner.as_str(), None, None, None)
         .unwrap_err();
     assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+}
+
+#[test]
+fn update_validator_list() {
+    let mut suite = SuiteBuilder::new().build();
+
+    let owner = suite.owner();
+
+    suite
+        .update_validator_list(owner.as_str(), suite.single_validator())
+        .unwrap();
+    assert_eq!(
+        suite.query_validator_list().unwrap(),
+        suite.single_validator()
+    );
+
+    suite
+        .update_validator_list(owner.as_str(), suite.two_validators())
+        .unwrap();
+    assert_eq!(
+        suite.query_validator_list().unwrap(),
+        suite.two_validators()
+    );
+
+    let err = suite
+        .update_validator_list(owner.as_str(), suite.two_false_validators())
+        .unwrap_err();
+    assert_eq!(
+        ContractError::InvalidValidatorList {},
+        err.downcast().unwrap()
+    );
 }
