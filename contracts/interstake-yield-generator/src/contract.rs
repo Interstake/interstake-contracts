@@ -165,7 +165,7 @@ mod execute {
         Ok(Response::new().add_attribute("action", "validator_list_updated"))
     }
     pub fn delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-        let config = CONFIG.load(deps.storage)?;
+        let _config = CONFIG.load(deps.storage)?;
 
         if info.funds.len() != 1 {
             return Err(ContractError::NoFunds {});
@@ -512,7 +512,7 @@ mod query {
         let mut rewards: Vec<Coin> = vec![];
 
         for data in VALIDATOR_LIST.range(deps.storage, None, None, Ascending) {
-            let (validator, weight) = data?;
+            let (validator, _weight) = data?;
             let delegation_response: DelegationResponse =
                 deps.querier
                     .query(&QueryRequest::Staking(StakingQuery::Delegation {

@@ -1,9 +1,9 @@
-use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS, VALIDATOR_1, VALIDATOR_2};
+use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
 use cosmwasm_std::{Addr, Decimal, Timestamp};
 
 use crate::error::ContractError;
-use crate::multitest::suite::{single_validator, two_false_validators, two_validators, Suite};
+use crate::multitest::suite::{single_validator, two_false_validators, two_validators};
 use crate::state::{Config, TeamCommision};
 
 #[test]
