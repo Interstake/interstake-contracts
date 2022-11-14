@@ -139,28 +139,26 @@ pub struct Suite {
     owner: Addr,
     contract: Addr,
 }
+pub fn single_validator() -> Vec<(String, Decimal)> {
+    vec![(VALIDATOR_1.to_string(), Decimal::one())]
+}
 
+pub fn two_validators() -> Vec<(String, Decimal)> {
+    vec![
+        (VALIDATOR_1.to_string(), Decimal::percent(50)),
+        (VALIDATOR_2.to_string(), Decimal::percent(50)),
+    ]
+}
+
+pub fn two_false_validators() -> Vec<(String, Decimal)> {
+    vec![
+        (VALIDATOR_1.to_string(), Decimal::percent(25)),
+        (VALIDATOR_2.to_string(), Decimal::percent(50)),
+    ]
+}
 impl Suite {
     pub fn owner(&self) -> Addr {
         self.owner.clone()
-    }
-
-    pub fn single_validator(&self) -> Vec<(String, Decimal)> {
-        vec![(VALIDATOR_1.to_string(), Decimal::one())]
-    }
-
-    pub fn two_validators(&self) -> Vec<(String, Decimal)> {
-        vec![
-            (VALIDATOR_1.to_string(), Decimal::percent(50)),
-            (VALIDATOR_2.to_string(), Decimal::percent(50)),
-        ]
-    }
-
-    pub fn two_false_validators(&self) -> Vec<(String, Decimal)> {
-        vec![
-            (VALIDATOR_1.to_string(), Decimal::percent(25)),
-            (VALIDATOR_2.to_string(), Decimal::percent(50)),
-        ]
     }
 
     pub fn advance_height(&mut self, blocks: u64) {

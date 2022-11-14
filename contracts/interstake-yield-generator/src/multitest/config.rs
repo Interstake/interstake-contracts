@@ -3,6 +3,7 @@ use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS, VALIDATOR_1, VALIDATOR_2};
 use cosmwasm_std::{Addr, Decimal, Timestamp};
 
 use crate::error::ContractError;
+use crate::multitest::suite::{single_validator, two_false_validators, two_validators, Suite};
 use crate::state::{Config, TeamCommision};
 
 #[test]
@@ -99,23 +100,17 @@ fn update_validator_list() {
     let owner = suite.owner();
 
     suite
-        .update_validator_list(owner.as_str(), suite.single_validator())
+        .update_validator_list(owner.as_str(), single_validator())
         .unwrap();
-    assert_eq!(
-        suite.query_validator_list().unwrap(),
-        suite.single_validator()
-    );
+    assert_eq!(suite.query_validator_list().unwrap(), single_validator());
 
     suite
-        .update_validator_list(owner.as_str(), suite.two_validators())
+        .update_validator_list(owner.as_str(), two_validators())
         .unwrap();
-    assert_eq!(
-        suite.query_validator_list().unwrap(),
-        suite.two_validators()
-    );
+    assert_eq!(suite.query_validator_list().unwrap(), two_validators());
 
     let err = suite
-        .update_validator_list(owner.as_str(), suite.two_false_validators())
+        .update_validator_list(owner.as_str(), two_false_validators())
         .unwrap_err();
     assert_eq!(
         ContractError::InvalidValidatorList {},

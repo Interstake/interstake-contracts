@@ -1,4 +1,4 @@
-use super::suite::SuiteBuilder;
+use super::suite::{single_validator, two_validators, SuiteBuilder};
 
 use cosmwasm_std::{assert_approx_eq, coin, coins, Decimal, Uint128};
 
@@ -7,12 +7,24 @@ use crate::msg::{DelegateResponse, TotalDelegatedResponse};
 const ONE_DAY: u64 = 3600 * 24;
 
 #[test]
-fn one_user() {
+fn one_user_one_validator() {
+    one_user(single_validator())
+}
+
+#[test]
+fn one_user_two_validators() {
+    one_user(two_validators())
+}
+
+fn one_user(validators: Vec<(String, Decimal)>) {
     let user = "user";
     let delegated = Uint128::new(100_000_000u128);
     let mut suite = SuiteBuilder::new()
         .with_funds(user, &coins(delegated.u128(), "ujuno"))
         .build();
+    suite
+        .update_validator_list(suite.owner().as_str(), validators.clone())
+        .unwrap();
 
     suite
         .delegate(user, coin(delegated.u128(), "ujuno"))
@@ -96,7 +108,16 @@ impl User {
 }
 
 #[test]
-fn multiple_users() {
+fn multiple_users_single_validator() {
+    multiple_users(single_validator())
+}
+
+#[test]
+fn multiple_users_two_validators() {
+    multiple_users(two_validators())
+}
+
+fn multiple_users(validators: Vec<(String, Decimal)>) {
     let user1 = User::new("user1", 100_000_000);
     let user2 = User::new("user2", 200_000_000);
     let user3 = User::new("user3", 300_000_000);
@@ -109,6 +130,10 @@ fn multiple_users() {
         .with_funds(&user4.name, &coins(user4.delegated.u128(), "ujuno"))
         .with_funds(&user5.name, &coins(user5.delegated.u128(), "ujuno"))
         .build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     suite
         .delegate(&user1.name, coin(user1.delegated.u128(), "ujuno"))
@@ -204,7 +229,16 @@ fn multiple_users() {
 }
 
 #[test]
-fn partial_user() {
+fn partial_user_single_validator() {
+    partial_user(single_validator())
+}
+
+#[test]
+fn partial_user_two_validators() {
+    partial_user(two_validators())
+}
+
+fn partial_user(validators: Vec<(String, Decimal)>) {
     let user1 = User::new("user1", 50_000_000_000);
     let user2 = User::new("user2", 30_000_000_000);
     let user_partial = User::new("user_partial", 20_000_000_000);
@@ -216,6 +250,10 @@ fn partial_user() {
             &coins(user_partial.delegated.u128(), "ujuno"),
         )
         .build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     suite
         .delegate(&user1.name, coin(user1.delegated.u128(), "ujuno"))
@@ -294,7 +332,16 @@ fn partial_user() {
 }
 
 #[test]
-fn multiple_partial_users() {
+fn multiple_partial_users_single_validator() {
+    multiple_partial_users(single_validator())
+}
+
+#[test]
+fn multiple_partial_users_two_validators() {
+    multiple_partial_users(two_validators())
+}
+
+fn multiple_partial_users(validators: Vec<(String, Decimal)>) {
     let user1 = User::new("user1", 50_000_000_000);
     let user2 = User::new("user2", 30_000_000_000);
     let user3 = User::new("user3", 80_000_000_000);
@@ -303,6 +350,10 @@ fn multiple_partial_users() {
         .with_funds(&user2.name, &coins(user2.delegated.u128(), "ujuno"))
         .with_funds(&user3.name, &coins(user3.delegated.u128(), "ujuno"))
         .build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     // advance by some arbitrary height (0.2 weight)
     suite.advance_height(200);
@@ -378,7 +429,16 @@ fn multiple_partial_users() {
 }
 
 #[test]
-fn partial_user_become_full_after_restake() {
+fn partial_user_become_full_after_restake_single_validator() {
+    partial_user_become_full_after_restake(single_validator())
+}
+
+#[test]
+fn partial_user_become_full_after_restake_two_validators() {
+    partial_user_become_full_after_restake(two_validators())
+}
+
+fn partial_user_become_full_after_restake(validators: Vec<(String, Decimal)>) {
     let user1 = User::new("user1", 40_000_000_000);
     let user2 = User::new("user2", 30_000_000_000);
     let user3 = User::new("user3", 35_000_000_000);
@@ -387,6 +447,10 @@ fn partial_user_become_full_after_restake() {
         .with_funds(&user2.name, &coins(user2.delegated.u128(), "ujuno"))
         .with_funds(&user3.name, &coins(user3.delegated.u128(), "ujuno"))
         .build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     // advance by some arbitrary height (0.2 weight)
     suite.advance_height(200);
