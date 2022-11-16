@@ -139,15 +139,16 @@ pub struct Suite {
     owner: Addr,
     contract: Addr,
 }
-pub fn single_validator() -> Vec<(String, Decimal)> {
-    vec![(VALIDATOR_1.to_string(), Decimal::one())]
-}
 
-pub fn two_validators() -> Vec<(String, Decimal)> {
-    vec![
-        (VALIDATOR_1.to_string(), Decimal::percent(50)),
-        (VALIDATOR_2.to_string(), Decimal::percent(50)),
-    ]
+pub fn validator_list(i: u32) -> Vec<(String, Decimal)> {
+    let mut validators = vec![];
+    //equally devide validators
+    let weight = Decimal::from_ratio(1u128, (i) as u128);
+
+    for i in 0..i {
+        validators.push((format!("validator{}", i + 1), weight));
+    }
+    validators
 }
 
 pub fn two_false_validators() -> Vec<(String, Decimal)> {

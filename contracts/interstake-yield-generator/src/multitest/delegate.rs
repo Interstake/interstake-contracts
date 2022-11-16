@@ -1,22 +1,18 @@
-use super::suite::{single_validator, two_validators, SuiteBuilder};
+use super::suite::SuiteBuilder;
 
+use crate::{
+    msg::{DelegateResponse, TotalDelegatedResponse},
+    multitest::suite::validator_list,
+};
 use cosmwasm_std::{assert_approx_eq, coin, coins, Decimal, Uint128};
-
-use crate::msg::{DelegateResponse, TotalDelegatedResponse};
+use test_case::test_case;
 
 const ONE_DAY: u64 = 3600 * 24;
 
-#[test]
-fn one_user_one_validator() {
-    one_user(single_validator())
-}
-
-#[test]
-fn one_user_two_validators() {
-    one_user(two_validators())
-}
-
-fn one_user(validators: Vec<(String, Decimal)>) {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn one_user(i: u32) {
+    let validators = validator_list(i);
     let user = "user";
     let delegated = Uint128::new(100_000_000u128);
     let mut suite = SuiteBuilder::new()
@@ -107,17 +103,10 @@ impl User {
     }
 }
 
-#[test]
-fn multiple_users_single_validator() {
-    multiple_users(single_validator())
-}
-
-#[test]
-fn multiple_users_two_validators() {
-    multiple_users(two_validators())
-}
-
-fn multiple_users(validators: Vec<(String, Decimal)>) {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn multiple_users(i: u32) {
+    let validators = validator_list(i);
     let user1 = User::new("user1", 100_000_000);
     let user2 = User::new("user2", 200_000_000);
     let user3 = User::new("user3", 300_000_000);
@@ -228,17 +217,10 @@ fn multiple_users(validators: Vec<(String, Decimal)>) {
     );
 }
 
-#[test]
-fn partial_user_single_validator() {
-    partial_user(single_validator())
-}
-
-#[test]
-fn partial_user_two_validators() {
-    partial_user(two_validators())
-}
-
-fn partial_user(validators: Vec<(String, Decimal)>) {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn partial_user(i: u32) {
+    let validators = validator_list(i);
     let user1 = User::new("user1", 50_000_000_000);
     let user2 = User::new("user2", 30_000_000_000);
     let user_partial = User::new("user_partial", 20_000_000_000);
@@ -331,17 +313,10 @@ fn partial_user(validators: Vec<(String, Decimal)>) {
     );
 }
 
-#[test]
-fn multiple_partial_users_single_validator() {
-    multiple_partial_users(single_validator())
-}
-
-#[test]
-fn multiple_partial_users_two_validators() {
-    multiple_partial_users(two_validators())
-}
-
-fn multiple_partial_users(validators: Vec<(String, Decimal)>) {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn multiple_partial_users(i: u32) {
+    let validators = validator_list(i);
     let user1 = User::new("user1", 50_000_000_000);
     let user2 = User::new("user2", 30_000_000_000);
     let user3 = User::new("user3", 80_000_000_000);
@@ -428,17 +403,10 @@ fn multiple_partial_users(validators: Vec<(String, Decimal)>) {
     );
 }
 
-#[test]
-fn partial_user_become_full_after_restake_single_validator() {
-    partial_user_become_full_after_restake(single_validator())
-}
-
-#[test]
-fn partial_user_become_full_after_restake_two_validators() {
-    partial_user_become_full_after_restake(two_validators())
-}
-
-fn partial_user_become_full_after_restake(validators: Vec<(String, Decimal)>) {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn partial_user_become_full_after_restake(i: u32) {
+    let validators = validator_list(i);
     let user1 = User::new("user1", 40_000_000_000);
     let user2 = User::new("user2", 30_000_000_000);
     let user3 = User::new("user3", 35_000_000_000);
