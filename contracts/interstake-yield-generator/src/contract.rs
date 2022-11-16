@@ -616,14 +616,13 @@ mod utils {
     }
 
     pub fn distribute_msgs_for_validators(deps: Deps) -> StdResult<Vec<DistributionMsg>> {
-        let mut msgs = vec![];
-        for validator in VALIDATOR_LIST.range(deps.storage, None, None, Ascending) {
-            let (val_addr, _) = validator.unwrap();
-            let distribute_msg = DistributionMsg::WithdrawDelegatorReward {
-                validator: val_addr.to_string(),
-            };
-            msgs.push(distribute_msg);
-        }
-        Ok(msgs)
+        VALIDATOR_LIST.range(deps.storage, None, None, Ascending)
+            .map(|validator| {
+                let (address, _) = validator?;
+                Ok(DistributionMsg::WithdrawDelegatorReward {
+                    validator: address.to_string(),
+                })
+            })
+        .collect::<StdResult<Vec<_>>>()
     }
 }
