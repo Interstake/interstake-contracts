@@ -549,7 +549,6 @@ mod query {
     pub fn validator_list(deps: Deps) -> StdResult<ValidatorsResponse> {
         let validators = VALIDATOR_LIST
             .range(deps.storage, None, None, Ascending)
-            .into_iter()
             .map(|pair| {
                 let (key, value) = pair.unwrap();
                 (key.to_string(), value)
@@ -616,13 +615,14 @@ mod utils {
     }
 
     pub fn distribute_msgs_for_validators(deps: Deps) -> StdResult<Vec<DistributionMsg>> {
-        VALIDATOR_LIST.range(deps.storage, None, None, Ascending)
+        VALIDATOR_LIST
+            .range(deps.storage, None, None, Ascending)
             .map(|validator| {
                 let (address, _) = validator?;
                 Ok(DistributionMsg::WithdrawDelegatorReward {
                     validator: address.to_string(),
                 })
             })
-        .collect::<StdResult<Vec<_>>>()
+            .collect::<StdResult<Vec<_>>>()
     }
 }
