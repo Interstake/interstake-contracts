@@ -559,3 +559,20 @@ fn partial_user_become_full_after_restake(i: u32) {
 }
 
 // TODO: add tests for redelegating once validator list is updated.
+#[test]
+fn redelegate_after_validator_list_update() {
+    let validators = validator_list(2);
+
+    let mut suite = SuiteBuilder::new()
+        .with_funds("user", &vec![coin(100_000_000_000u128, "ujuno")])
+        .build();
+
+    suite.delegate("user", coin(1000u128, "ujuno")).unwrap();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators.clone())
+        .unwrap();
+
+    suite.undelegate("user", coin(1000u128, "ujuno")).unwrap();
+    suite.advance_time(ONE_DAY);
+}
