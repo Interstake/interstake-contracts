@@ -3,7 +3,8 @@ use schemars::JsonSchema;
 use std::fmt;
 
 use cosmwasm_std::{
-    Addr, BalanceResponse, BankQuery, BlockInfo, Coin, Decimal, Uint128, Validator,
+    Addr, AllDelegationsResponse, BalanceResponse, BankQuery, BlockInfo, Coin, Decimal, Delegation,
+    StakingQuery, Uint128, Validator,
 };
 use cw_multi_test::{
     App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, StakingSudo, SudoMsg,
@@ -354,5 +355,14 @@ impl Suite {
             },
         )?;
         Ok(response.claims)
+    }
+
+    pub fn query_all_delegations(&self) -> AnyResult<Vec<Delegation>> {
+        let response: AllDelegationsResponse = self.app.wrap().query(
+            &cosmwasm_std::QueryRequest::Staking(StakingQuery::AllDelegations {
+                delegator: self.contract.to_string(),
+            }),
+        )?;
+        Ok(response.delegations)
     }
 }

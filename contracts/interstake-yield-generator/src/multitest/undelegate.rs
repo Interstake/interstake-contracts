@@ -240,6 +240,9 @@ fn undelegate_all(i: u32, n_users: u32) {
 
     for user in &users {
         suite.delegate(user, coin(700, "ujuno")).unwrap();
+
+        let res: DelegateResponse = suite.query_delegated(user).unwrap();
+        assert_eq!(res.total_staked, Uint128::new(700));
     }
 
     // all funds should now be fully delegated
@@ -250,6 +253,9 @@ fn undelegate_all(i: u32, n_users: u32) {
 
     let res = suite.undelegate_all(suite.owner().as_str());
     assert!(res.is_ok(), "undelegate_all by owner failed: {:?}", res);
+
+    let stake = suite.query_all_delegations().unwrap();
+    // let total_delegation = stake.iter().map(|d| d.amount.amount).sum::<u128>();
 
     // all previously delegated funds should be in the claim_details
     for user in &users {
@@ -264,9 +270,12 @@ fn undelegate_all(i: u32, n_users: u32) {
     }
 
     suite.advance_time(TWENTY_EIGHT_DAYS);
+    suite.process_staking_queue().unwrap();
 
-    for user in users.iter() {
-        let _ = suite.claim(user.as_str()).unwrap();
+    for user in &users {
+        if let Err(err) = suite.claim(user.as_str()) {
+            panic!("claim failed: {:?}", err);
+        }
     }
 
     // all funds should now be undelegated
