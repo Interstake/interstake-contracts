@@ -150,12 +150,21 @@ mod execute {
 
         let mut sum = Decimal::zero();
 
+        let old_validators = VALIDATOR_LIST
+            .range(deps.storage, None, None, Ascending)
+            .map(|item| {
+                let (addr, weight) = item.unwrap();
+                (addr, weight)
+            })
+            .collect::<Vec<(Addr, Decimal)>>();
+
         VALIDATOR_LIST.clear(deps.storage);
         for (validator, weight) in validators.iter() {
             sum += weight;
             VALIDATOR_LIST.save(deps.storage, &deps.api.addr_validate(validator)?, weight)?;
         }
 
+        // StakingMsg::Redelegate { src_validator: (), dst_validator: (), amount: () }
         if sum != Decimal::one() {
             return Err(ContractError::InvalidValidatorList {});
         }
@@ -671,12 +680,14 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     Ok(Response::new())
 }
 
-mod utils {
+pub mod utils {
+    use std::ops::Add;
+
     use cosmwasm_std::{Fraction, Order::Ascending};
 
     use crate::state::VALIDATOR_LIST;
 
-    use super::*;
+    use super::{query::total, *};
 
     pub fn delegate_msgs_for_validators(
         deps: Deps,
@@ -723,5 +734,114 @@ mod utils {
                 })
             })
             .collect::<StdResult<Vec<_>>>()
+    }
+
+    pub fn compute_redelegate_msgs(
+        denom: &str,
+        old_validator_list: Vec<(Addr, Decimal)>,
+        new_validator_list: Vec<(Addr, Decimal)>,
+    ) -> StdResult<Vec<StakingMsg>> {
+        let mut msgs: Vec<StakingMsg> = vec![];
+
+        let total_delegated = Uint128::from(100u128);
+
+        let mut delegate_from: Vec<(Addr, Decimal)> = vec![];
+        let mut delegate_to: Vec<(Addr, Decimal)> = vec![];
+
+        for (old_validator, old_value) in old_validator_list.clone() {
+            // if old validator in new validator list, compute difference
+            // if let Some(new_value) = new_validator_list
+            match new_validator_list
+                .iter()
+                .find(|(new_validator, _)| new_validator == &old_validator)
+                .map(|(_, new_percentage)| new_percentage)
+            {
+                Some(new_value) => {
+                    // if old percentage is greater than new percentage, delegate from old validator
+                    if old_value.gt(new_value) {
+                        delegate_from.push((old_validator, old_value.checked_sub(*new_value)?));
+                        // if old percentage is less than new percentage, delegate to old validator
+                    } else if old_value.lt(new_value) {
+                        delegate_to.push((old_validator, *new_value - old_value));
+                    }
+                }
+                // if old percentage is equal to new percentage, do nothing (no need to redelegate)
+                None => {
+                    // if old validator not in new validator list, delegate from it
+                    delegate_from.push((old_validator, old_value));
+                }
+            }
+        }
+        // panic!(); test reaches untill here
+
+        // add new validators that are not in the old list to delegate to
+        for (new_validator, new_value) in new_validator_list {
+            if !old_validator_list
+                .iter()
+                .any(|old| old.0.eq(&new_validator))
+            {
+                delegate_to.push((new_validator, new_value))
+            }
+        }
+
+        // panic!(); // test reaches this point
+
+        // now i have two lists of validators to delegate from and to
+        // i need to compute the amount to delegate from each validator
+        for (addr_to, mut amount_to) in delegate_to.iter_mut() {
+            for (addr_from, mut amount_from) in delegate_from.iter_mut() {
+                if amount_from.is_zero() {
+                    continue;
+                }
+
+                if amount_to.gt(&amount_from) {
+                    let pct_diff = amount_to.checked_sub(amount_from)?;
+                    let amount = total_delegated
+                        .checked_multiply_ratio(pct_diff.numerator(), pct_diff.denominator())
+                        .unwrap();
+
+                    // remove value from delegate_from and update delegate_to value
+                    amount_to = amount_to.checked_sub(amount_from).unwrap();
+                    amount_from = Decimal::zero();
+
+                    let msg = redelegate_msg(&addr_from, &addr_to, amount, denom.to_string());
+                    msgs.push(msg);
+                    continue;
+                } else if amount_to.lt(&amount_from) {
+                    let pct_diff = amount_from.checked_sub(amount_to).unwrap();
+                    let amount = total_delegated
+                        .checked_multiply_ratio(pct_diff.numerator(), pct_diff.denominator())
+                        .unwrap();
+
+                    let msg = redelegate_msg(&addr_from, &addr_to, amount, denom.to_string());
+                    msgs.push(msg);
+                    break;
+                } else {
+                    // amount_to == amount_from
+
+                    let amount = total_delegated
+                        .checked_multiply_ratio(amount_to.numerator(), amount_to.denominator())
+                        .unwrap();
+
+                    amount_from = Decimal::zero();
+
+                    let msg = redelegate_msg(&addr_from, &addr_to, amount, denom.to_string());
+                    msgs.push(msg);
+                    break;
+                }
+            }
+        }
+
+        return Ok(msgs);
+    }
+
+    fn redelegate_msg(from: &Addr, to: &Addr, amount: Uint128, denom: String) -> StakingMsg {
+        let staking_msg = StakingMsg::Redelegate {
+            src_validator: from.to_string(),
+            dst_validator: to.to_string(),
+            amount: coin(amount.u128(), denom),
+        };
+
+        staking_msg
     }
 }

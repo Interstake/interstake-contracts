@@ -1,7 +1,8 @@
 use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
-use cosmwasm_std::{Addr, Decimal, Timestamp};
+use cosmwasm_std::{coin, Addr, Decimal, StakingMsg, Timestamp};
 
+use crate::contract::utils::compute_redelegate_msgs;
 use crate::error::ContractError;
 use crate::multitest::suite::{two_false_validators, validator_list};
 use crate::state::{Config, TeamCommision};
@@ -115,5 +116,29 @@ fn update_validator_list() {
     assert_eq!(
         ContractError::InvalidValidatorList {},
         err.downcast().unwrap()
+    );
+}
+
+#[test]
+fn test_redelegate_to_new_validator_list() {
+    let validators = vec![
+        (Addr::unchecked("validator1"), Decimal::percent(50)),
+        (Addr::unchecked("validator2"), Decimal::percent(40)),
+        (Addr::unchecked("validator3"), Decimal::percent(10)),
+        (Addr::unchecked("validator4"), Decimal::percent(50)),
+    ];
+
+    let msgs = compute_redelegate_msgs("ujuno", validators[..3].to_vec(), validators[1..].to_vec())
+        .unwrap();
+
+    assert_eq!(msgs.len(), 1);
+
+    assert_eq!(
+        msgs[0],
+        StakingMsg::Redelegate {
+            src_validator: "validator1".to_string(),
+            dst_validator: "validator4".to_string(),
+            amount: coin(50u128, "ujuno")
+        }
     );
 }
