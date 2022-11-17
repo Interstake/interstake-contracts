@@ -1,14 +1,22 @@
 use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
-use cosmwasm_std::{coin, coins, Uint128};
-
 use crate::error::ContractError;
 use crate::msg::DelegateResponse;
+use crate::multitest::suite::validator_list;
 use crate::state::ClaimDetails;
+use cosmwasm_std::{coin, coins, Decimal, Uint128};
+use test_case::test_case;
 
-#[test]
-fn undelegate_without_delegation() {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn undelegate_without_delegation(i: u32) {
     let mut suite = SuiteBuilder::new().build();
+    let validators = validator_list(i);
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
+
     let err = suite
         .undelegate("random_user", coin(1, "ujuno"))
         .unwrap_err();
@@ -18,12 +26,15 @@ fn undelegate_without_delegation() {
     );
 }
 
-#[test]
-fn create_basic_claim() {
+fn create_basic_claim(i: u32) {
+    let validators = validator_list(i);
     let user = "user";
     let mut suite = SuiteBuilder::new()
         .with_funds(user, &coins(100, "ujuno"))
         .build();
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     suite.delegate(user, coin(100, "ujuno")).unwrap();
     assert_eq!(
@@ -55,12 +66,18 @@ fn create_basic_claim() {
     );
 }
 
-#[test]
-fn undelegate_part_of_tokens() {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn undelegate_part_of_tokens(i: u32) {
+    let validators = validator_list(i);
     let user = "user";
     let mut suite = SuiteBuilder::new()
         .with_funds(user, &coins(1000, "ujuno"))
         .build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     suite.delegate(user, coin(1000, "ujuno")).unwrap();
     assert_eq!(

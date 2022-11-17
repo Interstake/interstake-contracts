@@ -22,10 +22,11 @@ pub enum ExecuteMsg {
     /// Only called by owner
     UpdateConfig {
         owner: Option<String>,
-        staking_addr: Option<String>,
         team_commision: Option<TeamCommision>,
         unbonding_period: Option<u64>,
     },
+    /// Updates the list of validators that will be used for staking
+    UpdateValidatorList { validators: Vec<(String, Decimal)> },
     /// Adds amount of tokens to common staking pool
     Delegate {},
     /// Undelegates currently staked portion of token
@@ -61,6 +62,10 @@ pub enum QueryMsg {
     /// Last payment block height
     #[returns(LastPaymentBlockResponse)]
     LastPaymentBlock {},
+    #[returns(ValidatorsResponse)]
+    ValidatorList {},
+    #[returns(ValidatorWeightResponse)]
+    ValidatorWeight { validator: String },
 }
 
 #[cw_serde]
@@ -101,4 +106,14 @@ pub struct TotalDelegatedResponse {
 #[cw_serde]
 pub struct LastPaymentBlockResponse {
     pub last_payment_block: u64,
+}
+
+#[cw_serde]
+pub struct ValidatorsResponse {
+    pub validators: Vec<(String, Decimal)>,
+}
+
+#[cw_serde]
+pub struct ValidatorWeightResponse {
+    pub weight: Decimal,
 }

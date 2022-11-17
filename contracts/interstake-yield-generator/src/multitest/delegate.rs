@@ -1,18 +1,26 @@
 use super::suite::SuiteBuilder;
 
+use crate::{
+    msg::{DelegateResponse, TotalDelegatedResponse},
+    multitest::suite::validator_list,
+};
 use cosmwasm_std::{assert_approx_eq, coin, coins, Decimal, Uint128};
-
-use crate::msg::{DelegateResponse, TotalDelegatedResponse};
+use test_case::test_case;
 
 const ONE_DAY: u64 = 3600 * 24;
 
-#[test]
-fn one_user() {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn one_user(i: u32) {
+    let validators = validator_list(i);
     let user = "user";
     let delegated = Uint128::new(100_000_000u128);
     let mut suite = SuiteBuilder::new()
         .with_funds(user, &coins(delegated.u128(), "ujuno"))
         .build();
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     suite
         .delegate(user, coin(delegated.u128(), "ujuno"))
@@ -40,7 +48,7 @@ fn one_user() {
 
     // Default validator commision is 5%, APR is 80%
     // 100_000_000 * 0.95 * 0.8 * (1/365) = 208_218.72
-    assert_eq!(reward_amount.u128(), 208_219u128);
+    assert_approx_eq!(reward_amount.u128(), 208_219u128, "0.00001");
     suite.restake(owner.as_str()).unwrap();
     assert_eq!(
         suite.query_delegated(user).unwrap(),
@@ -95,8 +103,10 @@ impl User {
     }
 }
 
-#[test]
-fn multiple_users() {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn multiple_users(i: u32) {
+    let validators = validator_list(i);
     let user1 = User::new("user1", 100_000_000);
     let user2 = User::new("user2", 200_000_000);
     let user3 = User::new("user3", 300_000_000);
@@ -109,6 +119,10 @@ fn multiple_users() {
         .with_funds(&user4.name, &coins(user4.delegated.u128(), "ujuno"))
         .with_funds(&user5.name, &coins(user5.delegated.u128(), "ujuno"))
         .build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     suite
         .delegate(&user1.name, coin(user1.delegated.u128(), "ujuno"))
@@ -137,7 +151,7 @@ fn multiple_users() {
     let owner = suite.owner();
     let reward_amount = suite.query_reward().unwrap().amount;
 
-    assert_eq!(reward_amount.u128(), 3_123_287u128);
+    assert_approx_eq!(reward_amount.u128(), 3_123_287u128, "0.00001");
     suite.restake(owner.as_str()).unwrap();
 
     // weight = 100_000_000 / 1_500_000_000
@@ -203,8 +217,10 @@ fn multiple_users() {
     );
 }
 
-#[test]
-fn partial_user() {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn partial_user(i: u32) {
+    let validators = validator_list(i);
     let user1 = User::new("user1", 50_000_000_000);
     let user2 = User::new("user2", 30_000_000_000);
     let user_partial = User::new("user_partial", 20_000_000_000);
@@ -216,6 +232,10 @@ fn partial_user() {
             &coins(user_partial.delegated.u128(), "ujuno"),
         )
         .build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     suite
         .delegate(&user1.name, coin(user1.delegated.u128(), "ujuno"))
@@ -293,8 +313,10 @@ fn partial_user() {
     );
 }
 
-#[test]
-fn multiple_partial_users() {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn multiple_partial_users(i: u32) {
+    let validators = validator_list(i);
     let user1 = User::new("user1", 50_000_000_000);
     let user2 = User::new("user2", 30_000_000_000);
     let user3 = User::new("user3", 80_000_000_000);
@@ -303,6 +325,10 @@ fn multiple_partial_users() {
         .with_funds(&user2.name, &coins(user2.delegated.u128(), "ujuno"))
         .with_funds(&user3.name, &coins(user3.delegated.u128(), "ujuno"))
         .build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     // advance by some arbitrary height (0.2 weight)
     suite.advance_height(200);
@@ -377,8 +403,10 @@ fn multiple_partial_users() {
     );
 }
 
-#[test]
-fn partial_user_become_full_after_restake() {
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn partial_user_become_full_after_restake(i: u32) {
+    let validators = validator_list(i);
     let user1 = User::new("user1", 40_000_000_000);
     let user2 = User::new("user2", 30_000_000_000);
     let user3 = User::new("user3", 35_000_000_000);
@@ -387,6 +415,10 @@ fn partial_user_become_full_after_restake() {
         .with_funds(&user2.name, &coins(user2.delegated.u128(), "ujuno"))
         .with_funds(&user3.name, &coins(user3.delegated.u128(), "ujuno"))
         .build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     // advance by some arbitrary height (0.2 weight)
     suite.advance_height(200);

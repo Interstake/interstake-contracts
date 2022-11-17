@@ -18,7 +18,7 @@ cosmwasm-schema = "1.1"
 cosmwasm-storage = "1.1"
 cw-storage-plus = "0.16"
 cw2 = "0.16"
-cw20-base = {  version = "0.16", features = ["library"] }
+cw20-base = { version = "0.16", features = ["library"] }
 cw-utils = "0.16"
 schemars = "0.8"
 semver = "1"
@@ -28,3 +28,4 @@ thiserror = "1"
 [dev-dependencies]
 anyhow = "1"
 cw-multi-test = "0.16"
+test-case = "2.2.2"

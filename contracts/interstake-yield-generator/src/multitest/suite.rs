@@ -10,6 +10,7 @@ use cw_multi_test::{
 use crate::msg::{
     ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
     InstantiateMsg, LastPaymentBlockResponse, QueryMsg, RewardResponse, TotalDelegatedResponse,
+    ValidatorWeightResponse, ValidatorsResponse,
 };
 use crate::state::{ClaimDetails, Config, TeamCommision};
 
@@ -30,18 +31,19 @@ where
 #[derive(Debug)]
 pub struct SuiteBuilder {
     pub owner: String,
-    pub staking_addr: String,
     pub team_commision: Option<Decimal>,
     pub validator_commission: Decimal,
     pub funds: Vec<(Addr, Vec<Coin>)>,
     pub denom: String,
 }
 
+pub const VALIDATOR_1: &str = "validator1";
+pub const VALIDATOR_2: &str = "validator2";
+
 impl SuiteBuilder {
     pub fn new() -> Self {
         Self {
             owner: "owner".to_owned(),
-            staking_addr: "staking".to_owned(),
             team_commision: None,
             validator_commission: Decimal::percent(5),
             funds: vec![],
@@ -63,11 +65,19 @@ impl SuiteBuilder {
         let mut app: App = App::default();
 
         let valoper1 = Validator {
-            address: self.staking_addr.clone(),
+            address: VALIDATOR_1.to_owned(),
             commission: self.validator_commission,
             max_commission: Decimal::percent(100),
             max_change_rate: Decimal::percent(1),
         };
+
+        let valoper2 = Validator {
+            address: VALIDATOR_2.to_owned(),
+            commission: self.validator_commission,
+            max_commission: Decimal::percent(100),
+            max_change_rate: Decimal::percent(1),
+        };
+
         let staking_info = StakingInfo {
             bonded_denom: "ujuno".to_string(),
             unbonding_time: 60,
@@ -82,6 +92,12 @@ impl SuiteBuilder {
             router
                 .staking
                 .add_validator(api, storage, &block_info, valoper1)
+                .unwrap();
+
+            // add second validator
+            router
+                .staking
+                .add_validator(api, storage, &block_info, valoper2)
                 .unwrap();
 
             funds.into_iter().for_each(|(address, coins)| {
@@ -99,7 +115,7 @@ impl SuiteBuilder {
                 owner.clone(),
                 &InstantiateMsg {
                     owner: self.owner.clone(),
-                    staking_addr: self.staking_addr.to_string(),
+                    staking_addr: VALIDATOR_1.to_owned(),
                     team_commision: self.team_commision,
                     denom: self.denom,
                     unbonding_period: Some(TWENTY_EIGHT_DAYS),
@@ -114,7 +130,6 @@ impl SuiteBuilder {
             app,
             owner,
             contract: yield_generator_contract,
-            staking: self.staking_addr,
         }
     }
 }
@@ -123,16 +138,28 @@ pub struct Suite {
     pub app: App,
     owner: Addr,
     contract: Addr,
-    staking: String,
 }
 
+pub fn validator_list(i: u32) -> Vec<(String, Decimal)> {
+    let mut validators = vec![];
+    //equally devide validators
+    let weight = Decimal::from_ratio(1u128, (i) as u128);
+
+    for i in 0..i {
+        validators.push((format!("validator{}", i + 1), weight));
+    }
+    validators
+}
+
+pub fn two_false_validators() -> Vec<(String, Decimal)> {
+    vec![
+        (VALIDATOR_1.to_string(), Decimal::percent(25)),
+        (VALIDATOR_2.to_string(), Decimal::percent(50)),
+    ]
+}
 impl Suite {
     pub fn owner(&self) -> Addr {
         self.owner.clone()
-    }
-
-    pub fn staking(&self) -> String {
-        self.staking.clone()
     }
 
     pub fn advance_height(&mut self, blocks: u64) {
@@ -158,7 +185,6 @@ impl Suite {
         &mut self,
         sender: &str,
         owner: impl Into<Option<String>>,
-        staking_addr: impl Into<Option<String>>,
         team_commision: impl Into<Option<TeamCommision>>,
         unbonding_period: impl Into<Option<u64>>,
     ) -> AnyResult<AppResponse> {
@@ -167,9 +193,23 @@ impl Suite {
             self.contract.clone(),
             &ExecuteMsg::UpdateConfig {
                 owner: owner.into(),
-                staking_addr: staking_addr.into(),
                 team_commision: team_commision.into(),
                 unbonding_period: unbonding_period.into(),
+            },
+            &[],
+        )
+    }
+
+    pub fn update_validator_list(
+        &mut self,
+        sender: &str,
+        validator_list: Vec<(String, Decimal)>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::UpdateValidatorList {
+                validators: validator_list,
             },
             &[],
         )
@@ -234,6 +274,24 @@ impl Suite {
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::Config {})?;
         Ok(response.config)
+    }
+
+    pub fn query_validator_list(&self) -> AnyResult<Vec<(String, Decimal)>> {
+        let response: ValidatorsResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::ValidatorList {})?;
+        Ok(response.validators)
+    }
+
+    pub fn query_validator_weight(&self, validator: &str) -> AnyResult<ValidatorWeightResponse> {
+        let response: ValidatorWeightResponse = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::ValidatorWeight {
+                validator: validator.into(),
+            },
+        )?;
+        Ok(response)
     }
 
     pub fn query_delegated(&self, sender: impl Into<String>) -> AnyResult<DelegateResponse> {

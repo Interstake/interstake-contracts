@@ -15,7 +15,6 @@ pub enum TeamCommision {
 #[serde(rename_all = "snake_case")]
 pub struct Config {
     pub owner: Addr,
-    pub staking_addr: String,
     pub team_commision: TeamCommision,
     pub denom: String,
     pub unbonding_period: Timestamp,
@@ -67,3 +66,4 @@ pub const TOTAL: Item<Coin> = Item::new("total");
 pub const LAST_PAYMENT_BLOCK: Item<u64> = Item::new("last_payment_block");
 pub const STAKE_DETAILS: Map<&Addr, StakeDetails> = Map::new("stake_details");
 pub const UNBONDING_CLAIMS: Map<&Addr, Vec<ClaimDetails>> = Map::new("unbonding_claims");
+pub const VALIDATOR_LIST: Map<&Addr, Decimal> = Map::new("validator_list");

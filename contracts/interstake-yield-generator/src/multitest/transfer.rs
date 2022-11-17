@@ -1,15 +1,27 @@
 use super::suite::SuiteBuilder;
 
-use cosmwasm_std::{coin, coins, Uint128};
+use cosmwasm_std::{coin, coins, Decimal, Uint128};
 
-use crate::msg::{DelegateResponse, TotalDelegatedResponse};
-#[test]
-fn delegate_and_transfer() {
+use crate::{
+    msg::{DelegateResponse, TotalDelegatedResponse},
+    multitest::suite::validator_list,
+};
+use test_case::test_case;
+
+#[test_case(1; "single_validator")]
+#[test_case(2; "two_validators")]
+fn delegate_and_transfer(i: u32) {
+    let validators = validator_list(i);
+
     let user1 = ("user1", 50_000_000u128);
     let user2 = "user2";
     let mut suite = SuiteBuilder::new()
         .with_funds(user1.0, &coins(user1.1, "ujuno"))
         .build();
+
+    suite
+        .update_validator_list(suite.owner().as_str(), validators)
+        .unwrap();
 
     suite.delegate(user1.0, coin(user1.1, "ujuno")).unwrap();
 
