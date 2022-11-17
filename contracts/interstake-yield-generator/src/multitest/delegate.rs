@@ -557,3 +557,5 @@ fn partial_user_become_full_after_restake(i: u32) {
         "0.00000001"
     );
 }
+
+// TODO: add tests for redelegating once validator list is updated.

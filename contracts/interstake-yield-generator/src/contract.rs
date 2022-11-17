@@ -160,6 +160,7 @@ mod execute {
             return Err(ContractError::InvalidValidatorList {});
         }
 
+        // TODO: Redelegate all the stakes to the correct validators
         Ok(Response::new().add_attribute("action", "validator_list_updated"))
     }
 
@@ -462,7 +463,11 @@ mod execute {
 
             // for each staker, add their stake to the total amount of undelegate
             stake_details.consolidate_partials(deps.storage)?;
-            let claim_amount = stake_details.total.clone();
+            // let claim_amount = stake_details.total.clone();
+            let claim_amount = Coin {
+                amount: stake_details.total.amount,
+                denom: config.denom.clone(),
+            };
 
             total_staked.amount += claim_amount.amount;
 
