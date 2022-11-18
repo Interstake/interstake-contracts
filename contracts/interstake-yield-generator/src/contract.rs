@@ -105,7 +105,9 @@ mod execute {
     use crate::state::VALIDATOR_LIST;
 
     use super::{
-        utils::{delegate_msgs_for_validators, distribute_msgs_for_validators},
+        utils::{
+            compute_redelegate_msgs, delegate_msgs_for_validators, distribute_msgs_for_validators,
+        },
         *,
     };
 
@@ -141,7 +143,7 @@ mod execute {
     pub fn update_validator_list(
         deps: DepsMut,
         info: MessageInfo,
-        validators: Vec<(String, Decimal)>,
+        validator_list: Vec<(String, Decimal)>,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
         if info.sender != config.owner {
@@ -150,7 +152,7 @@ mod execute {
 
         let mut sum = Decimal::zero();
 
-        let old_validators = VALIDATOR_LIST
+        let old_validator_list = VALIDATOR_LIST
             .range(deps.storage, None, None, Ascending)
             .map(|item| {
                 let (addr, weight) = item.unwrap();
@@ -158,8 +160,21 @@ mod execute {
             })
             .collect::<Vec<(Addr, Decimal)>>();
 
+        let total_staked = TOTAL.load(deps.storage)?;
+
+        // let new_validator_list: Vec<(Addr, Decimal)> = validator_list
+        // .iter()
+        // .map(|(addr, dec)| (deps.api.addr_validate(addr).unwrap(), dec)).into();
+
+        // let redelegate_msgs = compute_redelegate_msgs(
+        //     total_staked.amount,
+        //     &config.denom,
+        //     old_validator_list,
+        //     ,
+        // )?;
+
         VALIDATOR_LIST.clear(deps.storage);
-        for (validator, weight) in validators.iter() {
+        for (validator, weight) in validator_list.iter() {
             sum += weight;
             VALIDATOR_LIST.save(deps.storage, &deps.api.addr_validate(validator)?, weight)?;
         }
@@ -737,13 +752,12 @@ pub mod utils {
     }
 
     pub fn compute_redelegate_msgs(
+        total_delegated: Uint128,
         denom: &str,
         old_validator_list: Vec<(Addr, Decimal)>,
         new_validator_list: Vec<(Addr, Decimal)>,
     ) -> StdResult<Vec<StakingMsg>> {
         let mut msgs: Vec<StakingMsg> = vec![];
-
-        let total_delegated = Uint128::from(100u128);
 
         let mut delegate_from: Vec<(Addr, Decimal)> = vec![];
         let mut delegate_to: Vec<(Addr, Decimal)> = vec![];
@@ -812,6 +826,7 @@ pub mod utils {
                     let amount = total_delegated
                         .checked_multiply_ratio(pct_diff.numerator(), pct_diff.denominator())
                         .unwrap();
+                    amount_from = amount_from.checked_sub(amount_to)?;
 
                     let msg = redelegate_msg(&addr_from, &addr_to, amount, denom.to_string());
                     msgs.push(msg);

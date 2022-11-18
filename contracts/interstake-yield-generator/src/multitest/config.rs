@@ -1,6 +1,6 @@
 use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
-use cosmwasm_std::{coin, Addr, Decimal, StakingMsg, Timestamp};
+use cosmwasm_std::{coin, Addr, Decimal, StakingMsg, Timestamp, Uint128};
 
 use crate::contract::utils::compute_redelegate_msgs;
 use crate::error::ContractError;
@@ -128,8 +128,13 @@ fn test_redelegate_to_new_validator_list() {
         (Addr::unchecked("validator4"), Decimal::percent(50)),
     ];
 
-    let msgs = compute_redelegate_msgs("ujuno", validators[..3].to_vec(), validators[1..].to_vec())
-        .unwrap();
+    let msgs = compute_redelegate_msgs(
+        Uint128::new(100u128),
+        "ujuno",
+        validators[..3].to_vec(),
+        validators[1..].to_vec(),
+    )
+    .unwrap();
 
     assert_eq!(msgs.len(), 1);
 
@@ -140,5 +145,38 @@ fn test_redelegate_to_new_validator_list() {
             dst_validator: "validator4".to_string(),
             amount: coin(50u128, "ujuno")
         }
+    );
+}
+
+#[test]
+fn test_redelegate_to_new_validator_list2() {
+    let validators1 = vec![
+        (Addr::unchecked("validator1"), Decimal::percent(50)),
+        (Addr::unchecked("validator2"), Decimal::percent(20)),
+        (Addr::unchecked("validator3"), Decimal::percent(10)),
+        (Addr::unchecked("validator4"), Decimal::percent(10)),
+        (Addr::unchecked("validator5"), Decimal::percent(10)),
+        // (Addr::unchecked("validator4"), Decimal::percent(50)),
+    ];
+    let validators2 = vec![
+        // (Addr::unchecked("validator1"), Decimal::percent(50)),
+        (Addr::unchecked("validator6"), Decimal::percent(25)),
+        (Addr::unchecked("validator7"), Decimal::percent(25)),
+        (Addr::unchecked("validator8"), Decimal::percent(50)),
+    ];
+
+    let msgs =
+        compute_redelegate_msgs(Uint128::new(100u128), "ujuno", validators1, validators2).unwrap();
+
+    // FIXME: this should be 4
+    // assert_eq!(msgs.len(), 5);
+
+    assert_eq!(
+        msgs,
+        vec![StakingMsg::Redelegate {
+            src_validator: "validator1".to_string(),
+            dst_validator: "validator4".to_string(),
+            amount: coin(50u128, "ujuno")
+        }]
     );
 }
