@@ -3,8 +3,8 @@ use schemars::JsonSchema;
 use std::fmt;
 
 use cosmwasm_std::{
-    Addr, AllDelegationsResponse, BlockInfo, Coin, Decimal, Delegation,
-    StakingQuery, Uint128, Validator,
+    Addr, AllDelegationsResponse, BlockInfo, Coin, Decimal, Delegation, StakingQuery, Uint128,
+    Validator,
 };
 use cw_multi_test::{
     App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, StakingSudo, SudoMsg,

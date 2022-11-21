@@ -107,6 +107,7 @@ mod execute {
     use super::{
         utils::{
             compute_redelegate_msgs, delegate_msgs_for_validators, distribute_msgs_for_validators,
+            unwrap_stake_details,
         },
         *,
     };
@@ -191,6 +192,7 @@ mod execute {
     }
 
     pub fn delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+        let denom = CONFIG.load(deps.as_ref().storage)?.denom;
         if info.funds.len() != 1 {
             return Err(ContractError::NoFunds {});
         }
@@ -207,10 +209,8 @@ mod execute {
             deps.storage,
             &info.sender,
             |stake_details| -> StdResult<_> {
-                let mut stake_details = stake_details.unwrap_or_default();
-                if stake_details.start_height == 0 {
-                    stake_details.start_height = env.block.height;
-                }
+                let mut stake_details =
+                    unwrap_stake_details(stake_details, denom, env.block.height);
                 stake_details.partials.push(stake);
                 Ok(stake_details)
             },
@@ -434,20 +434,19 @@ mod execute {
         amount: Uint128,
     ) -> Result<Response, ContractError> {
         let recipient = deps.api.addr_validate(&recipient)?;
+        let denom = CONFIG.load(deps.as_ref().storage)?.denom;
 
         STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
-            let mut stake_details = stake_details.unwrap_or_default();
+            let mut stake_details =
+                unwrap_stake_details(stake_details, denom.clone(), env.block.height);
             dbg!(stake_details.clone());
             stake_details.total.amount =
                 dbg!(stake_details.total.amount).checked_sub(dbg!(amount))?;
             Ok(stake_details)
         })?;
         STAKE_DETAILS.update(deps.storage, &recipient, |stake_details| -> StdResult<_> {
-            let mut stake_details = stake_details.unwrap_or_default();
+            let mut stake_details = unwrap_stake_details(stake_details, denom, env.block.height);
             stake_details.total.amount = stake_details.total.amount.checked_add(amount)?;
-            if stake_details.start_height == 0 {
-                stake_details.start_height = env.block.height;
-            }
             Ok(stake_details)
         })?;
 
@@ -543,7 +542,7 @@ mod execute {
         // Update total amount of staked tokens
         TOTAL.update(deps.storage, |total| -> StdResult<_> {
             Ok(coin(
-                (total.amount - total_staked.amount).u128(),
+                (total.amount.checked_sub(total_staked.amount)?).u128(),
                 total.denom,
             ))
         })?;
@@ -857,5 +856,21 @@ pub mod utils {
             dst_validator: to.to_string(),
             amount: coin(amount.u128(), denom),
         }
+    }
+
+    pub fn unwrap_stake_details(
+        stake_details: Option<StakeDetails>,
+        denom: String,
+        start_height: u64,
+    ) -> StakeDetails {
+        stake_details.unwrap_or(StakeDetails {
+            total: Coin {
+                denom,
+                amount: Uint128::zero(),
+            },
+            partials: vec![],
+            earnings: Uint128::zero(),
+            start_height,
+        })
     }
 }
