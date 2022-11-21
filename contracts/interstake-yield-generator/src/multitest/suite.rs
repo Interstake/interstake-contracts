@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use std::fmt;
 
 use cosmwasm_std::{
-    Addr, AllDelegationsResponse, BalanceResponse, BankQuery, BlockInfo, Coin, Decimal, Delegation,
+    Addr, AllDelegationsResponse, BlockInfo, Coin, Decimal, Delegation,
     StakingQuery, Uint128, Validator,
 };
 use cw_multi_test::{

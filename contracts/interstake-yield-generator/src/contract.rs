@@ -102,8 +102,6 @@ pub fn execute(
 
 mod execute {
 
-    use cosmwasm_std::StdError;
-
     use crate::state::VALIDATOR_LIST;
 
     use super::{
@@ -700,13 +698,12 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 }
 
 pub mod utils {
-    use std::ops::Add;
 
     use cosmwasm_std::{Fraction, Order::Ascending};
 
     use crate::state::VALIDATOR_LIST;
 
-    use super::{query::total, *};
+    use super::*;
 
     pub fn delegate_msgs_for_validators(
         deps: Deps,
@@ -812,7 +809,7 @@ pub mod utils {
                     continue;
                 }
 
-                if amount_to.gt(&amount_from) {
+                if amount_to.gt(amount_from) {
                     // let pct_diff = amount_to.checked_sub(*amount_from)?;
                     let amount = total_delegated
                         .checked_multiply_ratio(amount_from.numerator(), amount_from.denominator())
@@ -822,17 +819,17 @@ pub mod utils {
                     amount_to = amount_to.checked_sub(*amount_from).unwrap();
                     *amount_from = Decimal::zero();
 
-                    let msg = redelegate_msg(&addr_from, &addr_to, amount, denom.to_string());
+                    let msg = redelegate_msg(addr_from, addr_to, amount, denom.to_string());
                     msgs.push(msg);
                     continue;
-                } else if amount_to.lt(&amount_from) {
+                } else if amount_to.lt(amount_from) {
                     let pct_diff = amount_from.checked_sub(amount_to).unwrap();
                     let amount = total_delegated
                         .checked_multiply_ratio(pct_diff.numerator(), pct_diff.denominator())
                         .unwrap();
                     *amount_from = amount_from.checked_sub(amount_to)?;
 
-                    let msg = redelegate_msg(&addr_from, &addr_to, amount, denom.to_string());
+                    let msg = redelegate_msg(addr_from, addr_to, amount, denom.to_string());
                     msgs.push(msg);
                     break;
                 } else {
@@ -844,23 +841,21 @@ pub mod utils {
 
                     *amount_from = Decimal::zero();
 
-                    let msg = redelegate_msg(&addr_from, &addr_to, amount, denom.to_string());
+                    let msg = redelegate_msg(addr_from, addr_to, amount, denom.to_string());
                     msgs.push(msg);
                     break;
                 }
             }
         }
 
-        return Ok(msgs);
+        Ok(msgs)
     }
 
     fn redelegate_msg(from: &Addr, to: &Addr, amount: Uint128, denom: String) -> StakingMsg {
-        let staking_msg = StakingMsg::Redelegate {
+        StakingMsg::Redelegate {
             src_validator: from.to_string(),
             dst_validator: to.to_string(),
             amount: coin(amount.u128(), denom),
-        };
-
-        staking_msg
+        }
     }
 }

@@ -4,7 +4,7 @@ use crate::error::ContractError;
 use crate::msg::DelegateResponse;
 use crate::multitest::suite::validator_list;
 use crate::state::ClaimDetails;
-use cosmwasm_std::{coin, coins, Addr, Coin, Decimal, Querier, Uint128};
+use cosmwasm_std::{coin, coins, Addr, Uint128};
 use test_case::test_case;
 
 #[test_case(1; "single_validator")]
@@ -254,7 +254,7 @@ fn undelegate_all(i: u32, n_users: u32) {
     let res = suite.undelegate_all(suite.owner().as_str());
     assert!(res.is_ok(), "undelegate_all by owner failed: {:?}", res);
 
-    let stake = suite.query_all_delegations().unwrap();
+    let _stake = suite.query_all_delegations().unwrap();
     // let total_delegation = stake.iter().map(|d| d.amount.amount).sum::<u128>();
 
     // all previously delegated funds should be in the claim_details
