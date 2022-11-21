@@ -1,4 +1,4 @@
-use super::suite::SuiteBuilder;
+use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
 use crate::{
     msg::{DelegateResponse, TotalDelegatedResponse},
@@ -558,13 +558,12 @@ fn partial_user_become_full_after_restake(i: u32) {
     );
 }
 
-// TODO: add tests for redelegating once validator list is updated.
 #[test]
 fn redelegate_after_validator_list_update() {
     let validators = validator_list(2);
 
     let mut suite = SuiteBuilder::new()
-        .with_funds("user", &vec![coin(100_000_000_000u128, "ujuno")])
+        .with_funds("user", &vec![coin(1000u128, "ujuno")])
         .build();
 
     suite.delegate("user", coin(1000u128, "ujuno")).unwrap();
@@ -574,5 +573,20 @@ fn redelegate_after_validator_list_update() {
         .unwrap();
 
     suite.undelegate("user", coin(1000u128, "ujuno")).unwrap();
-    suite.advance_time(ONE_DAY);
+    suite.advance_time(TWENTY_EIGHT_DAYS);
+    suite.process_staking_queue();
+
+    let _res = suite.claim("user").unwrap();
+
+    assert_eq!(
+        suite
+            .app
+            .wrap()
+            .query_balance("user", "ujuno")
+            .unwrap()
+            .amount,
+        Uint128::new(1000)
+            .checked_add(suite.query_reward().unwrap().amount)
+            .unwrap()
+    );
 }
