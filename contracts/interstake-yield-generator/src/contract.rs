@@ -163,10 +163,7 @@ mod execute {
 
         let total_staked = TOTAL.load(deps.storage)?;
 
-        // let new_validator_list: Vec<(Addr, Decimal)> = validator_list
-        // .iter()
-        // .map(|(addr, dec)| (deps.api.addr_validate(addr).unwrap(), dec)).into();
-
+        // redelegate funds from old validator list to new validator list
         let redelegate_msgs = compute_redelegate_msgs(
             total_staked.amount,
             &config.denom,
@@ -180,7 +177,6 @@ mod execute {
             VALIDATOR_LIST.save(deps.storage, &validator, &weight)?;
         }
 
-        // StakingMsg::Redelegate { src_validator: (), dst_validator: (), amount: () }
         if sum != Decimal::one() {
             return Err(ContractError::InvalidValidatorList {});
         }
@@ -222,7 +218,6 @@ mod execute {
 
         Ok(Response::new()
             .add_attribute("action", "delegate")
-            // With multiple validators this is inconvenient and this will already be in the result of the staking messages
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_messages(msgs))
@@ -477,8 +472,6 @@ mod execute {
             .block
             .time
             .plus_seconds(config.unbonding_period.seconds());
-
-        // todo: try with STAKE_DETAILS.keys
 
         let mut new_claim_details: Vec<(Addr, ClaimDetails)> = vec![];
         let mut old_stake_details: Vec<(Addr, StakeDetails)> = vec![];
@@ -786,7 +779,6 @@ pub mod utils {
                 }
             }
         }
-        // panic!(); test reaches untill here
 
         // add new validators that are not in the old list to delegate to
         for (new_validator, new_value) in new_validator_list {
@@ -797,8 +789,6 @@ pub mod utils {
                 delegate_to.push((new_validator, new_value))
             }
         }
-
-        // panic!(); // test reaches this point
 
         // now i have two lists of validators to delegate from and to
         // i need to compute the amount to delegate from each validator
@@ -833,7 +823,6 @@ pub mod utils {
                     break;
                 } else {
                     // amount_to == amount_from
-
                     let amount = total_delegated
                         .checked_multiply_ratio(amount_to.numerator(), amount_to.denominator())
                         .unwrap();
