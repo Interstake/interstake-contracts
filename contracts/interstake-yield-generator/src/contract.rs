@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, Coin, Decimal, DelegationResponse, Deps, DepsMut,
-    DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StakingQuery,
-    StdResult, Timestamp, Uint128,
+    DistributionMsg, Env, MessageInfo, Order, Order::Ascending, QueryRequest, Response, StakingMsg,
+    StakingQuery, StdResult, Timestamp, Uint128,
 };
 use cw2::set_contract_version;
 use cw_utils::ensure_from_older_version;
@@ -96,11 +96,12 @@ pub fn execute(
         ExecuteMsg::Transfer { recipient, amount } => {
             execute::transfer(deps, env, info.sender, recipient, amount)
         }
-        ExecuteMsg::UndelegateAll {} => todo!(),
+        ExecuteMsg::UndelegateAll {} => execute::undelegate_all(deps, env, info),
     }
 }
 
 mod execute {
+
     use crate::state::VALIDATOR_LIST;
 
     use super::{
@@ -159,6 +160,7 @@ mod execute {
             return Err(ContractError::InvalidValidatorList {});
         }
 
+        // TODO: Redelegate all the stakes to the correct validators
         Ok(Response::new().add_attribute("action", "validator_list_updated"))
     }
 
@@ -428,6 +430,103 @@ mod execute {
             .add_attribute("amount", amount)
             .add_attribute("sender", &sender)
             .add_attribute("recipient", &recipient))
+    }
+
+    pub fn undelegate_all(
+        deps: DepsMut,
+        env: Env,
+        info: MessageInfo,
+    ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.as_ref().storage)?;
+        if config.owner != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+
+        let mut total_staked = Coin {
+            amount: Uint128::zero(),
+            denom: config.denom.clone(),
+        };
+
+        // let mut total_staked = Uint128::zero();
+        let release_timestamp = env
+            .block
+            .time
+            .plus_seconds(config.unbonding_period.seconds());
+
+        // todo: try with STAKE_DETAILS.keys
+
+        let mut new_claim_details: Vec<(Addr, ClaimDetails)> = vec![];
+        let mut old_stake_details: Vec<(Addr, StakeDetails)> = vec![];
+        // Iterate over all stakes and move copy them to old_stake_details and move them to claim_details
+        for res in STAKE_DETAILS.range(deps.storage, None, None, Ascending) {
+            let (addr, mut stake_details) = res?;
+
+            // for each staker, add their stake to the total amount of undelegate
+            stake_details.consolidate_partials(deps.storage)?;
+            // let claim_amount = stake_details.total.clone();
+            let claim_amount = Coin {
+                amount: stake_details.total.amount,
+                denom: config.denom.clone(),
+            };
+
+            total_staked.amount += claim_amount.amount;
+
+            // update the stake details to reflect the undelegation
+            stake_details.total = Coin {
+                amount: Uint128::zero(),
+                denom: config.denom.clone(),
+            };
+
+            // updates or removes stake details
+            old_stake_details.push((addr.clone(), stake_details.clone()));
+
+            // create proper claims
+            new_claim_details.push((
+                addr.clone(),
+                ClaimDetails {
+                    amount: claim_amount.clone(),
+                    release_timestamp,
+                },
+            ));
+        }
+
+        // update STAKE_DETAILS with new stake details
+        for (addr, stake_details) in old_stake_details {
+            if stake_details.total.amount.is_zero() {
+                STAKE_DETAILS.remove(deps.storage, &addr);
+            } else {
+                STAKE_DETAILS.save(deps.storage, &addr, &stake_details)?;
+            }
+        }
+
+        // update CLAIM_DETAILS with new claim details
+        for (addr, claim) in new_claim_details {
+            UNBONDING_CLAIMS.update(deps.storage, &addr, |claims| -> StdResult<_> {
+                let mut claims = claims.unwrap_or_default();
+                claims.push(claim);
+                Ok(claims)
+            })?;
+        }
+
+        // TODO: check if total corresponds to what total_staked: WARNING: Check rounding errors
+        // let total = TOTAL.load(deps.storage)?;
+
+        let undelegate_msgs =
+            delegate_msgs_for_validators(deps.as_ref(), total_staked.clone(), false)?;
+
+        // Update total amount of staked tokens
+        TOTAL.update(deps.storage, |total| -> StdResult<_> {
+            Ok(coin(
+                (total.amount - total_staked.amount).u128(),
+                total.denom,
+            ))
+        })?;
+
+        Ok(Response::new()
+            .add_attribute("action", "undelegate_all")
+            .add_attribute("amount", total_staked.amount)
+            .add_attribute("release_timestamp", release_timestamp.to_string())
+            .add_messages(undelegate_msgs))
     }
 }
 

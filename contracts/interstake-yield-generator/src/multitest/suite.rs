@@ -2,7 +2,10 @@ use anyhow::Result as AnyResult;
 use schemars::JsonSchema;
 use std::fmt;
 
-use cosmwasm_std::{Addr, BlockInfo, Coin, Decimal, Uint128, Validator};
+use cosmwasm_std::{
+    Addr, AllDelegationsResponse, BalanceResponse, BankQuery, BlockInfo, Coin, Decimal, Delegation,
+    StakingQuery, Uint128, Validator,
+};
 use cw_multi_test::{
     App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, StakingSudo, SudoMsg,
 };
@@ -54,6 +57,13 @@ impl SuiteBuilder {
     /// Sets initial amount of distributable tokens on address
     pub fn with_funds(mut self, addr: &str, funds: &[Coin]) -> Self {
         self.funds.push((Addr::unchecked(addr), funds.into()));
+        self
+    }
+
+    pub fn with_multiple_funds(mut self, user_funds: &[(Addr, Vec<Coin>)]) -> Self {
+        for userfunds in user_funds {
+            self.funds.push(userfunds.clone());
+        }
         self
     }
 
@@ -233,6 +243,15 @@ impl Suite {
         )
     }
 
+    pub fn undelegate_all(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::UndelegateAll {},
+            &[],
+        )
+    }
+
     pub fn restake(&mut self, sender: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -336,5 +355,14 @@ impl Suite {
             },
         )?;
         Ok(response.claims)
+    }
+
+    pub fn query_all_delegations(&self) -> AnyResult<Vec<Delegation>> {
+        let response: AllDelegationsResponse = self.app.wrap().query(
+            &cosmwasm_std::QueryRequest::Staking(StakingQuery::AllDelegations {
+                delegator: self.contract.to_string(),
+            }),
+        )?;
+        Ok(response.delegations)
     }
 }
