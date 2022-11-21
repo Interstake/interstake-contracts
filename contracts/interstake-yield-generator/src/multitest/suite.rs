@@ -215,12 +215,14 @@ impl Suite {
         sender: &str,
         validator_list: Vec<(String, Decimal)>,
     ) -> AnyResult<AppResponse> {
+        let new_validator_list = validator_list
+            .iter()
+            .map(|(addr, weight)| (Addr::unchecked(addr.as_str()), weight.to_owned()))
+            .collect::<Vec<(Addr, Decimal)>>();
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.contract.clone(),
-            &ExecuteMsg::UpdateValidatorList {
-                validators: validator_list,
-            },
+            &ExecuteMsg::UpdateValidatorList { new_validator_list },
             &[],
         )
     }

@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Coin, Decimal, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 
 use crate::state::{ClaimDetails, Config, TeamCommision};
 
@@ -26,7 +26,9 @@ pub enum ExecuteMsg {
         unbonding_period: Option<u64>,
     },
     /// Updates the list of validators that will be used for staking
-    UpdateValidatorList { validators: Vec<(String, Decimal)> },
+    UpdateValidatorList {
+        new_validator_list: Vec<(Addr, Decimal)>,
+    },
     /// Adds amount of tokens to common staking pool
     Delegate {},
     /// Undelegates currently staked portion of token

@@ -86,8 +86,8 @@ pub fn execute(
             team_commision,
             unbonding_period,
         } => execute::update_config(deps, info, owner, team_commision, unbonding_period),
-        ExecuteMsg::UpdateValidatorList { validators } => {
-            execute::update_validator_list(deps, info, validators)
+        ExecuteMsg::UpdateValidatorList { new_validator_list } => {
+            execute::update_validator_list(deps, info, new_validator_list)
         }
         ExecuteMsg::Delegate {} => execute::delegate(deps, env, info),
         ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
@@ -101,6 +101,8 @@ pub fn execute(
 }
 
 mod execute {
+
+    use cosmwasm_std::StdError;
 
     use crate::state::VALIDATOR_LIST;
 
@@ -143,7 +145,7 @@ mod execute {
     pub fn update_validator_list(
         deps: DepsMut,
         info: MessageInfo,
-        validator_list: Vec<(String, Decimal)>,
+        new_validator_list: Vec<(Addr, Decimal)>,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
         if info.sender != config.owner {
@@ -166,17 +168,17 @@ mod execute {
         // .iter()
         // .map(|(addr, dec)| (deps.api.addr_validate(addr).unwrap(), dec)).into();
 
-        // let redelegate_msgs = compute_redelegate_msgs(
-        //     total_staked.amount,
-        //     &config.denom,
-        //     old_validator_list,
-        //     ,
-        // )?;
+        let redelegate_msgs = compute_redelegate_msgs(
+            total_staked.amount,
+            &config.denom,
+            old_validator_list,
+            new_validator_list.clone(),
+        )?;
 
         VALIDATOR_LIST.clear(deps.storage);
-        for (validator, weight) in validator_list.iter() {
+        for (validator, weight) in new_validator_list {
             sum += weight;
-            VALIDATOR_LIST.save(deps.storage, &deps.api.addr_validate(validator)?, weight)?;
+            VALIDATOR_LIST.save(deps.storage, &validator, &weight)?;
         }
 
         // StakingMsg::Redelegate { src_validator: (), dst_validator: (), amount: () }
@@ -185,7 +187,9 @@ mod execute {
         }
 
         // TODO: Redelegate all the stakes to the correct validators
-        Ok(Response::new().add_attribute("action", "validator_list_updated"))
+        Ok(Response::new()
+            .add_messages(redelegate_msgs)
+            .add_attribute("action", "validator_list_updated"))
     }
 
     pub fn delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
@@ -803,20 +807,20 @@ pub mod utils {
         // now i have two lists of validators to delegate from and to
         // i need to compute the amount to delegate from each validator
         for (addr_to, mut amount_to) in delegate_to.iter_mut() {
-            for (addr_from, mut amount_from) in delegate_from.iter_mut() {
+            for (addr_from, amount_from) in delegate_from.iter_mut() {
                 if amount_from.is_zero() {
                     continue;
                 }
 
                 if amount_to.gt(&amount_from) {
-                    let pct_diff = amount_to.checked_sub(amount_from)?;
+                    // let pct_diff = amount_to.checked_sub(*amount_from)?;
                     let amount = total_delegated
-                        .checked_multiply_ratio(pct_diff.numerator(), pct_diff.denominator())
+                        .checked_multiply_ratio(amount_from.numerator(), amount_from.denominator())
                         .unwrap();
 
                     // remove value from delegate_from and update delegate_to value
-                    amount_to = amount_to.checked_sub(amount_from).unwrap();
-                    amount_from = Decimal::zero();
+                    amount_to = amount_to.checked_sub(*amount_from).unwrap();
+                    *amount_from = Decimal::zero();
 
                     let msg = redelegate_msg(&addr_from, &addr_to, amount, denom.to_string());
                     msgs.push(msg);
@@ -826,7 +830,7 @@ pub mod utils {
                     let amount = total_delegated
                         .checked_multiply_ratio(pct_diff.numerator(), pct_diff.denominator())
                         .unwrap();
-                    amount_from = amount_from.checked_sub(amount_to)?;
+                    *amount_from = amount_from.checked_sub(amount_to)?;
 
                     let msg = redelegate_msg(&addr_from, &addr_to, amount, denom.to_string());
                     msgs.push(msg);
@@ -838,7 +842,7 @@ pub mod utils {
                         .checked_multiply_ratio(amount_to.numerator(), amount_to.denominator())
                         .unwrap();
 
-                    amount_from = Decimal::zero();
+                    *amount_from = Decimal::zero();
 
                     let msg = redelegate_msg(&addr_from, &addr_to, amount, denom.to_string());
                     msgs.push(msg);
