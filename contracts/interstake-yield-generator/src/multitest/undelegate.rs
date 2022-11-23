@@ -254,8 +254,10 @@ fn undelegate_all(i: u32, n_users: u32) {
     let res = suite.undelegate_all(suite.owner().as_str());
     assert!(res.is_ok(), "undelegate_all by owner failed: {:?}", res);
 
-    let _stake = suite.query_all_delegations().unwrap();
-    // let total_delegation = stake.iter().map(|d| d.amount.amount).sum::<u128>();
+    // see if all the delegations are actually gone
+    let stake = suite.query_all_delegations().unwrap();
+    let total_delegation = stake.iter().map(|d| d.amount.amount.u128()).sum::<u128>();
+    assert_eq!(total_delegation, 0u128);
 
     // all previously delegated funds should be in the claim_details
     for user in &users {

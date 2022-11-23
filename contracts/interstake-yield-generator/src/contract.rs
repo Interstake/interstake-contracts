@@ -181,7 +181,6 @@ mod execute {
             return Err(ContractError::InvalidValidatorList {});
         }
 
-        // TODO: Redelegate all the stakes to the correct validators
         Ok(Response::new()
             .add_messages(redelegate_msgs)
             .add_attribute("action", "validator_list_updated"))
@@ -467,7 +466,6 @@ mod execute {
             denom: config.denom.clone(),
         };
 
-        // let mut total_staked = Uint128::zero();
         let release_timestamp = env
             .block
             .time
@@ -527,7 +525,7 @@ mod execute {
         }
 
         // TODO: check if total corresponds to what total_staked: WARNING: Check rounding errors
-        // let total = TOTAL.load(deps.storage)?;
+        // let total = TOTAL.load(deps.storage)?; ---
 
         let undelegate_msgs =
             delegate_msgs_for_validators(deps.as_ref(), total_staked.clone(), false)?;
