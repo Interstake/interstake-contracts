@@ -153,10 +153,8 @@ fn test_redelegate_replace_all_validators() {
         (Addr::unchecked("validator1"), Decimal::percent(50)),
         (Addr::unchecked("validator2"), Decimal::percent(20)),
         (Addr::unchecked("validator3"), Decimal::percent(30)),
-        // (Addr::unchecked("validator4"), Decimal::percent(50)),
     ];
     let validators2 = vec![
-        // (Addr::unchecked("validator1"), Decimal::percent(50)),
         (Addr::unchecked("validator4"), Decimal::percent(25)),
         (Addr::unchecked("validator5"), Decimal::percent(25)),
         (Addr::unchecked("validator6"), Decimal::percent(50)),
@@ -165,7 +163,6 @@ fn test_redelegate_replace_all_validators() {
     let msgs =
         compute_redelegate_msgs(Uint128::new(100u128), "ujuno", validators1, validators2).unwrap();
 
-    // FIXME: this should be 4
     assert_eq!(msgs.len(), 4);
 
     assert_eq!(
@@ -202,7 +199,6 @@ fn test_redelegate_update_and_replace_some() {
         (Addr::unchecked("validator2"), Decimal::percent(20)),
         (Addr::unchecked("validator3"), Decimal::percent(15)),
         (Addr::unchecked("validator4"), Decimal::percent(15)),
-        // (Addr::unchecked("validaor4"), Decimal::percent(50)),
     ];
     let validators2 = vec![
         (Addr::unchecked("validator1"), Decimal::percent(40)),
@@ -234,6 +230,38 @@ fn test_redelegate_update_and_replace_some() {
                 src_validator: "validator3".to_string(),
                 dst_validator: "validator5".to_string(),
                 amount: coin(15u128, "ujuno")
+            },
+        ]
+    );
+}
+
+#[test]
+fn test_redelegate_remove_some_validators() {
+    let validators1 = vec![
+        (Addr::unchecked("validator1"), Decimal::percent(50)),
+        (Addr::unchecked("validator2"), Decimal::percent(20)),
+        (Addr::unchecked("validator3"), Decimal::percent(30)),
+    ];
+    let validators2 = vec![(Addr::unchecked("validator2"), Decimal::percent(100))];
+
+    let msgs =
+        compute_redelegate_msgs(Uint128::new(100u128), "ujuno", validators1, validators2).unwrap();
+
+    //
+    assert_eq!(msgs.len(), 2);
+
+    assert_eq!(
+        msgs,
+        vec![
+            StakingMsg::Redelegate {
+                src_validator: "validator1".to_string(),
+                dst_validator: "validator2".to_string(),
+                amount: coin(50u128, "ujuno")
+            },
+            StakingMsg::Redelegate {
+                src_validator: "validator3".to_string(),
+                dst_validator: "validator2".to_string(),
+                amount: coin(30u128, "ujuno")
             },
         ]
     );
