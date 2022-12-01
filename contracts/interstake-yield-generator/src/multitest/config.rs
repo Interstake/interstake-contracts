@@ -204,8 +204,8 @@ fn test_redelegate_update_and_replace_some() {
     let validators2 = vec![
         (Addr::unchecked("validator1"), Decimal::percent(40)),
         (Addr::unchecked("validator2"), Decimal::percent(25)),
-        (Addr::unchecked("validator4"), Decimal::percent(15)),
-        (Addr::unchecked("validator6"), Decimal::percent(20)), // +20 (added)
+        (Addr::unchecked("validator4"), Decimal::percent(10)),
+        (Addr::unchecked("validator6"), Decimal::percent(25)), // +25 (added)
     ];
 
     let msgs =
