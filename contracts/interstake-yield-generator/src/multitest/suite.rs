@@ -3,8 +3,8 @@ use schemars::JsonSchema;
 use std::fmt;
 
 use cosmwasm_std::{
-    Addr, AllDelegationsResponse, BalanceResponse, BankQuery, BlockInfo, Coin, Decimal, Delegation,
-    StakingQuery, Uint128, Validator,
+    Addr, AllDelegationsResponse, BlockInfo, Coin, Decimal, Delegation, StakingQuery, Uint128,
+    Validator,
 };
 use cw_multi_test::{
     App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, StakingSudo, SudoMsg,
@@ -215,12 +215,14 @@ impl Suite {
         sender: &str,
         validator_list: Vec<(String, Decimal)>,
     ) -> AnyResult<AppResponse> {
+        let new_validator_list = validator_list
+            .iter()
+            .map(|(addr, weight)| (Addr::unchecked(addr.as_str()), weight.to_owned()))
+            .collect::<Vec<(Addr, Decimal)>>();
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.contract.clone(),
-            &ExecuteMsg::UpdateValidatorList {
-                validators: validator_list,
-            },
+            &ExecuteMsg::UpdateValidatorList { new_validator_list },
             &[],
         )
     }

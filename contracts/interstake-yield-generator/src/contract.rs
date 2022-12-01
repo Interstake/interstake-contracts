@@ -86,8 +86,8 @@ pub fn execute(
             team_commision,
             unbonding_period,
         } => execute::update_config(deps, info, owner, team_commision, unbonding_period),
-        ExecuteMsg::UpdateValidatorList { validators } => {
-            execute::update_validator_list(deps, info, validators)
+        ExecuteMsg::UpdateValidatorList { new_validator_list } => {
+            execute::update_validator_list(deps, info, new_validator_list)
         }
         ExecuteMsg::Delegate {} => execute::delegate(deps, env, info),
         ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
@@ -105,7 +105,10 @@ mod execute {
     use crate::state::VALIDATOR_LIST;
 
     use super::{
-        utils::{delegate_msgs_for_validators, distribute_msgs_for_validators},
+        utils::{
+            compute_redelegate_msgs, delegate_msgs_for_validators, distribute_msgs_for_validators,
+            unwrap_stake_details,
+        },
         *,
     };
 
@@ -141,7 +144,7 @@ mod execute {
     pub fn update_validator_list(
         deps: DepsMut,
         info: MessageInfo,
-        validators: Vec<(String, Decimal)>,
+        new_validator_list: Vec<(Addr, Decimal)>,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
         if info.sender != config.owner {
@@ -150,21 +153,41 @@ mod execute {
 
         let mut sum = Decimal::zero();
 
+        let old_validator_list = VALIDATOR_LIST
+            .range(deps.storage, None, None, Ascending)
+            .map(|item| {
+                let (addr, weight) = item.unwrap();
+                (addr, weight)
+            })
+            .collect::<Vec<(Addr, Decimal)>>();
+
+        let total_staked = TOTAL.load(deps.storage)?;
+
+        // redelegate funds from old validator list to new validator list
+        let redelegate_msgs = compute_redelegate_msgs(
+            total_staked.amount,
+            &config.denom,
+            old_validator_list,
+            new_validator_list.clone(),
+        )?;
+
         VALIDATOR_LIST.clear(deps.storage);
-        for (validator, weight) in validators.iter() {
+        for (validator, weight) in new_validator_list {
             sum += weight;
-            VALIDATOR_LIST.save(deps.storage, &deps.api.addr_validate(validator)?, weight)?;
+            VALIDATOR_LIST.save(deps.storage, &validator, &weight)?;
         }
 
         if sum != Decimal::one() {
             return Err(ContractError::InvalidValidatorList {});
         }
 
-        // TODO: Redelegate all the stakes to the correct validators
-        Ok(Response::new().add_attribute("action", "validator_list_updated"))
+        Ok(Response::new()
+            .add_messages(redelegate_msgs)
+            .add_attribute("action", "validator_list_updated"))
     }
 
     pub fn delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+        let denom = CONFIG.load(deps.as_ref().storage)?.denom;
         if info.funds.len() != 1 {
             return Err(ContractError::NoFunds {});
         }
@@ -181,10 +204,8 @@ mod execute {
             deps.storage,
             &info.sender,
             |stake_details| -> StdResult<_> {
-                let mut stake_details = stake_details.unwrap_or_default();
-                if stake_details.start_height == 0 {
-                    stake_details.start_height = env.block.height;
-                }
+                let mut stake_details =
+                    unwrap_stake_details(stake_details, denom, env.block.height);
                 stake_details.partials.push(stake);
                 Ok(stake_details)
             },
@@ -196,7 +217,6 @@ mod execute {
 
         Ok(Response::new()
             .add_attribute("action", "delegate")
-            // With multiple validators this is inconvenient and this will already be in the result of the staking messages
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
             .add_messages(msgs))
@@ -408,20 +428,19 @@ mod execute {
         amount: Uint128,
     ) -> Result<Response, ContractError> {
         let recipient = deps.api.addr_validate(&recipient)?;
+        let denom = CONFIG.load(deps.as_ref().storage)?.denom;
 
         STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
-            let mut stake_details = stake_details.unwrap_or_default();
+            let mut stake_details =
+                unwrap_stake_details(stake_details, denom.clone(), env.block.height);
             dbg!(stake_details.clone());
             stake_details.total.amount =
                 dbg!(stake_details.total.amount).checked_sub(dbg!(amount))?;
             Ok(stake_details)
         })?;
         STAKE_DETAILS.update(deps.storage, &recipient, |stake_details| -> StdResult<_> {
-            let mut stake_details = stake_details.unwrap_or_default();
+            let mut stake_details = unwrap_stake_details(stake_details, denom, env.block.height);
             stake_details.total.amount = stake_details.total.amount.checked_add(amount)?;
-            if stake_details.start_height == 0 {
-                stake_details.start_height = env.block.height;
-            }
             Ok(stake_details)
         })?;
 
@@ -447,13 +466,10 @@ mod execute {
             denom: config.denom.clone(),
         };
 
-        // let mut total_staked = Uint128::zero();
         let release_timestamp = env
             .block
             .time
             .plus_seconds(config.unbonding_period.seconds());
-
-        // todo: try with STAKE_DETAILS.keys
 
         let mut new_claim_details: Vec<(Addr, ClaimDetails)> = vec![];
         let mut old_stake_details: Vec<(Addr, StakeDetails)> = vec![];
@@ -509,7 +525,7 @@ mod execute {
         }
 
         // TODO: check if total corresponds to what total_staked: WARNING: Check rounding errors
-        // let total = TOTAL.load(deps.storage)?;
+        // let total = TOTAL.load(deps.storage)?; ---
 
         let undelegate_msgs =
             delegate_msgs_for_validators(deps.as_ref(), total_staked.clone(), false)?;
@@ -517,7 +533,7 @@ mod execute {
         // Update total amount of staked tokens
         TOTAL.update(deps.storage, |total| -> StdResult<_> {
             Ok(coin(
-                (total.amount - total_staked.amount).u128(),
+                (total.amount.checked_sub(total_staked.amount)?).u128(),
                 total.denom,
             ))
         })?;
@@ -671,7 +687,8 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     Ok(Response::new())
 }
 
-mod utils {
+pub mod utils {
+
     use cosmwasm_std::{Fraction, Order::Ascending};
 
     use crate::state::VALIDATOR_LIST;
@@ -723,5 +740,124 @@ mod utils {
                 })
             })
             .collect::<StdResult<Vec<_>>>()
+    }
+
+    pub fn compute_redelegate_msgs(
+        total_delegated: Uint128,
+        denom: &str,
+        old_validator_list: Vec<(Addr, Decimal)>,
+        new_validator_list: Vec<(Addr, Decimal)>,
+    ) -> StdResult<Vec<StakingMsg>> {
+        let mut msgs: Vec<StakingMsg> = vec![];
+
+        let mut delegate_from: Vec<(Addr, Decimal)> = vec![];
+        let mut delegate_to: Vec<(Addr, Decimal)> = vec![];
+
+        for (old_validator, old_value) in old_validator_list.clone() {
+            // if old validator in new validator list, compute difference
+            // if let Some(new_value) = new_validator_list
+            match new_validator_list
+                .iter()
+                .find(|(new_validator, _)| new_validator == &old_validator)
+                .map(|(_, new_percentage)| new_percentage)
+            {
+                Some(new_value) => {
+                    // if old percentage is greater than new percentage, delegate from old validator
+                    if old_value.gt(new_value) {
+                        delegate_from.push((old_validator, old_value.checked_sub(*new_value)?));
+                        // if old percentage is less than new percentage, delegate to old validator
+                    } else if old_value.lt(new_value) {
+                        delegate_to.push((old_validator, *new_value - old_value));
+                    }
+                }
+                // if old percentage is equal to new percentage, do nothing (no need to redelegate)
+                None => {
+                    // if old validator not in new validator list, delegate from it
+                    delegate_from.push((old_validator, old_value));
+                }
+            }
+        }
+
+        // add new validators that are not in the old list to delegate to
+        for (new_validator, new_value) in new_validator_list {
+            if !old_validator_list
+                .iter()
+                .any(|old| old.0.eq(&new_validator))
+            {
+                delegate_to.push((new_validator, new_value))
+            }
+        }
+
+        // now i have two lists of validators to delegate from and to
+        // i need to compute the amount to delegate from each validator
+        for (addr_to, mut amount_to) in delegate_to.iter_mut() {
+            for (addr_from, amount_from) in delegate_from.iter_mut() {
+                if amount_from.is_zero() {
+                    continue;
+                }
+
+                if amount_to.gt(amount_from) {
+                    // let pct_diff = amount_to.checked_sub(*amount_from)?;
+                    let amount = total_delegated
+                        .checked_multiply_ratio(amount_from.numerator(), amount_from.denominator())
+                        .unwrap();
+
+                    // remove value from delegate_from and update delegate_to value
+                    amount_to = amount_to.checked_sub(*amount_from).unwrap();
+                    *amount_from = Decimal::zero();
+
+                    let msg = redelegate_msg(addr_from, addr_to, amount, denom.to_string());
+                    msgs.push(msg);
+                    continue;
+                } else if amount_to.lt(amount_from) {
+                    let pct_diff = amount_from.checked_sub(amount_to).unwrap();
+                    let amount = total_delegated
+                        .checked_multiply_ratio(pct_diff.numerator(), pct_diff.denominator())
+                        .unwrap();
+                    *amount_from = amount_from.checked_sub(amount_to)?;
+
+                    let msg = redelegate_msg(addr_from, addr_to, amount, denom.to_string());
+                    msgs.push(msg);
+                    break;
+                } else {
+                    // amount_to == amount_from
+                    let amount = total_delegated
+                        .checked_multiply_ratio(amount_to.numerator(), amount_to.denominator())
+                        .unwrap();
+
+                    *amount_from = Decimal::zero();
+
+                    let msg = redelegate_msg(addr_from, addr_to, amount, denom.to_string());
+                    msgs.push(msg);
+                    break;
+                }
+            }
+        }
+
+        Ok(msgs)
+    }
+
+    fn redelegate_msg(from: &Addr, to: &Addr, amount: Uint128, denom: String) -> StakingMsg {
+        StakingMsg::Redelegate {
+            src_validator: from.to_string(),
+            dst_validator: to.to_string(),
+            amount: coin(amount.u128(), denom),
+        }
+    }
+
+    pub fn unwrap_stake_details(
+        stake_details: Option<StakeDetails>,
+        denom: String,
+        start_height: u64,
+    ) -> StakeDetails {
+        stake_details.unwrap_or(StakeDetails {
+            total: Coin {
+                denom,
+                amount: Uint128::zero(),
+            },
+            partials: vec![],
+            earnings: Uint128::zero(),
+            start_height,
+        })
     }
 }

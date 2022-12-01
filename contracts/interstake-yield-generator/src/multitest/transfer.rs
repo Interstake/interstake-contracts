@@ -1,6 +1,6 @@
 use super::suite::SuiteBuilder;
 
-use cosmwasm_std::{coin, coins, Decimal, Uint128};
+use cosmwasm_std::{coin, coins, Uint128};
 
 use crate::{
     msg::{DelegateResponse, TotalDelegatedResponse},

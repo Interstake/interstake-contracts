@@ -1,7 +1,8 @@
 use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
-use cosmwasm_std::{Addr, Decimal, Timestamp};
+use cosmwasm_std::{coin, Addr, Decimal, StakingMsg, Timestamp, Uint128};
 
+use crate::contract::utils::compute_redelegate_msgs;
 use crate::error::ContractError;
 use crate::multitest::suite::{two_false_validators, validator_list};
 use crate::state::{Config, TeamCommision};
@@ -115,5 +116,159 @@ fn update_validator_list() {
     assert_eq!(
         ContractError::InvalidValidatorList {},
         err.downcast().unwrap()
+    );
+}
+
+#[test]
+fn test_redelegate_replace_single_validator() {
+    let validators1 = vec![
+        (Addr::unchecked("validator1"), Decimal::percent(50)),
+        (Addr::unchecked("validator2"), Decimal::percent(40)),
+        (Addr::unchecked("validator3"), Decimal::percent(10)),
+    ];
+    let validators2 = vec![
+        (Addr::unchecked("validator2"), Decimal::percent(40)),
+        (Addr::unchecked("validator3"), Decimal::percent(10)),
+        (Addr::unchecked("validator4"), Decimal::percent(50)),
+    ];
+
+    let msgs =
+        compute_redelegate_msgs(Uint128::new(100u128), "ujuno", validators1, validators2).unwrap();
+
+    assert_eq!(msgs.len(), 1);
+
+    assert_eq!(
+        msgs[0],
+        StakingMsg::Redelegate {
+            src_validator: "validator1".to_string(),
+            dst_validator: "validator4".to_string(),
+            amount: coin(50u128, "ujuno")
+        }
+    );
+}
+
+#[test]
+fn test_redelegate_replace_all_validators() {
+    let validators1 = vec![
+        (Addr::unchecked("validator1"), Decimal::percent(50)),
+        (Addr::unchecked("validator2"), Decimal::percent(20)),
+        (Addr::unchecked("validator3"), Decimal::percent(30)),
+    ];
+    let validators2 = vec![
+        (Addr::unchecked("validator4"), Decimal::percent(25)),
+        (Addr::unchecked("validator5"), Decimal::percent(25)),
+        (Addr::unchecked("validator6"), Decimal::percent(50)),
+    ];
+
+    let msgs =
+        compute_redelegate_msgs(Uint128::new(100u128), "ujuno", validators1, validators2).unwrap();
+
+    assert_eq!(msgs.len(), 4);
+
+    assert_eq!(
+        msgs,
+        vec![
+            StakingMsg::Redelegate {
+                src_validator: "validator1".to_string(),
+                dst_validator: "validator4".to_string(),
+                amount: coin(25u128, "ujuno")
+            },
+            StakingMsg::Redelegate {
+                src_validator: "validator1".to_string(),
+                dst_validator: "validator5".to_string(),
+                amount: coin(25u128, "ujuno")
+            },
+            StakingMsg::Redelegate {
+                src_validator: "validator2".to_string(),
+                dst_validator: "validator6".to_string(),
+                amount: coin(20u128, "ujuno")
+            },
+            StakingMsg::Redelegate {
+                src_validator: "validator3".to_string(),
+                dst_validator: "validator6".to_string(),
+                amount: coin(30u128, "ujuno")
+            },
+        ]
+    );
+}
+
+#[test]
+fn test_redelegate_update_and_replace_some() {
+    let validators1 = vec![
+        (Addr::unchecked("validator1"), Decimal::percent(50)), // -10 (reduce)
+        (Addr::unchecked("validator2"), Decimal::percent(20)), //  +5 (increase)
+        (Addr::unchecked("validator3"), Decimal::percent(15)), // -15 (remove)
+        (Addr::unchecked("validator4"), Decimal::percent(10)), //   0 (unchanged)
+        (Addr::unchecked("validator5"), Decimal::percent(5)),  //  -5 (reduce)
+    ];
+    let validators2 = vec![
+        (Addr::unchecked("validator1"), Decimal::percent(40)),
+        (Addr::unchecked("validator2"), Decimal::percent(25)),
+        (Addr::unchecked("validator4"), Decimal::percent(10)),
+        (Addr::unchecked("validator6"), Decimal::percent(25)), // +25 (added)
+    ];
+
+    let msgs =
+        compute_redelegate_msgs(Uint128::new(100u128), "ujuno", validators1, validators2).unwrap();
+
+    //
+    assert_eq!(msgs.len(), 4);
+
+    assert_eq!(
+        msgs,
+        vec![
+            StakingMsg::Redelegate {
+                src_validator: "validator1".to_string(),
+                dst_validator: "validator2".to_string(),
+                amount: coin(5u128, "ujuno")
+            },
+            StakingMsg::Redelegate {
+                src_validator: "validator1".to_string(),
+                dst_validator: "validator6".to_string(),
+                amount: coin(5u128, "ujuno")
+            },
+            StakingMsg::Redelegate {
+                src_validator: "validator3".to_string(),
+                dst_validator: "validator6".to_string(),
+                amount: coin(15u128, "ujuno")
+            },
+            StakingMsg::Redelegate {
+                src_validator: "validator5".to_string(),
+                dst_validator: "validator6".to_string(),
+                amount: coin(5u128, "ujuno")
+            },
+        ]
+    );
+}
+
+#[test]
+fn test_redelegate_remove_some_validators() {
+    let validators1 = vec![
+        (Addr::unchecked("validator1"), Decimal::percent(50)),
+        (Addr::unchecked("validator2"), Decimal::percent(20)),
+        (Addr::unchecked("validator3"), Decimal::percent(30)),
+    ];
+    let validators2 = vec![(Addr::unchecked("validator2"), Decimal::percent(100))];
+
+    let msgs =
+        compute_redelegate_msgs(Uint128::new(100u128), "ujuno", validators1, validators2).unwrap();
+
+    //
+    assert_eq!(msgs.len(), 2);
+
+    assert_eq!(
+        msgs,
+        vec![
+            StakingMsg::Redelegate {
+                src_validator: "validator1".to_string(),
+                dst_validator: "validator2".to_string(),
+                amount: coin(50u128, "ujuno")
+            },
+            StakingMsg::Redelegate {
+                src_validator: "validator3".to_string(),
+                dst_validator: "validator2".to_string(),
+                amount: coin(30u128, "ujuno")
+            },
+        ]
     );
 }
