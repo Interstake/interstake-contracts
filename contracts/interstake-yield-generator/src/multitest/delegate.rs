@@ -563,18 +563,18 @@ fn redelegate_after_validator_list_update() {
     let validators = validator_list(2);
 
     let mut suite = SuiteBuilder::new()
-        .with_funds("user", &vec![coin(1000u128, "ujuno")])
+        .with_funds("user", &[coin(1000u128, "ujuno")])
         .build();
 
     suite.delegate("user", coin(1000u128, "ujuno")).unwrap();
 
     suite
-        .update_validator_list(suite.owner().as_str(), validators.clone())
+        .update_validator_list(suite.owner().as_str(), validators)
         .unwrap();
 
     suite.undelegate("user", coin(1000u128, "ujuno")).unwrap();
     suite.advance_time(TWENTY_EIGHT_DAYS);
-    suite.process_staking_queue();
+    suite.process_staking_queue().unwrap();
 
     let _res = suite.claim("user").unwrap();
 

@@ -1,6 +1,6 @@
 [package]
 name = "interstake-yield-generator"
-version = "0.1.5"
+version = "0.2.0"
 edition = "2021"
 authors = [
     "Jakub Bogucki <software-solutions@tuta.io>",
@@ -31,4 +31,4 @@ thiserror = "1"
 [dev-dependencies]
 anyhow = "1"
 cw-multi-test = "0.16"
-test-case = "2.2.2"
+test-case = "2.2"

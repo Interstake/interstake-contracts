@@ -13,7 +13,7 @@ use cw_multi_test::{
 use crate::msg::{
     ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
     InstantiateMsg, LastPaymentBlockResponse, QueryMsg, RewardResponse, TotalDelegatedResponse,
-    ValidatorWeightResponse, ValidatorsResponse,
+    ValidatorsResponse,
 };
 use crate::state::{ClaimDetails, Config, TeamCommision};
 
@@ -303,16 +303,6 @@ impl Suite {
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::ValidatorList {})?;
         Ok(response.validators)
-    }
-
-    pub fn query_validator_weight(&self, validator: &str) -> AnyResult<ValidatorWeightResponse> {
-        let response: ValidatorWeightResponse = self.app.wrap().query_wasm_smart(
-            self.contract.clone(),
-            &QueryMsg::ValidatorWeight {
-                validator: validator.into(),
-            },
-        )?;
-        Ok(response)
     }
 
     pub fn query_delegated(&self, sender: impl Into<String>) -> AnyResult<DelegateResponse> {
