@@ -2,7 +2,10 @@
 name = "interstake-yield-generator"
 version = "0.1.5"
 edition = "2021"
-authors = ["Jakub Bogucki <software-solutions@tuta.io>"]
+authors = [
+    "Jakub Bogucki <software-solutions@tuta.io>",
+    "Maurits Bos <maurits.bos@gmail.com>",
+]
 description = "Publica's Yield generator smart contract"
 
 [lib]
