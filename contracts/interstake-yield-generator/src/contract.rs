@@ -56,20 +56,22 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
 
-    VALIDATOR_LIST.save(deps.storage, &val_addr, &Decimal::one())?;
-
-    // Initialize last payment block
-    LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
-    TOTAL.save(deps.storage, &coin(0u128, &msg.denom))?;
-
-    Ok(Response::new()
+    let response = Response::new()
         .add_attribute("action", "instantiate")
         .add_attribute("owner", owner.into_string())
         .add_attribute("staking_addr", &msg.staking_addr)
         .add_attribute(
             "team_commision",
             msg.team_commision.unwrap_or_default().to_string(),
-        ))
+        );
+
+    VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
+
+    // Initialize last payment block
+    LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
+    TOTAL.save(deps.storage, &coin(0u128, &msg.denom))?;
+
+    Ok(response)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -143,7 +145,7 @@ mod execute {
     pub fn update_validator_list(
         deps: DepsMut,
         info: MessageInfo,
-        new_validator_list: Vec<(Addr, Decimal)>,
+        new_validator_list: Vec<(String, Decimal)>,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
         if info.sender != config.owner {
@@ -154,11 +156,7 @@ mod execute {
 
         let old_validator_list = VALIDATOR_LIST
             .range(deps.storage, None, None, Ascending)
-            .map(|item| {
-                let (addr, weight) = item.unwrap();
-                (addr, weight)
-            })
-            .collect::<Vec<(Addr, Decimal)>>();
+            .collect::<StdResult<Vec<(String, Decimal)>>>()?;
 
         let total_staked = TOTAL.load(deps.storage)?;
 
@@ -173,7 +171,7 @@ mod execute {
         VALIDATOR_LIST.clear(deps.storage);
         for (validator, weight) in new_validator_list {
             sum += weight;
-            VALIDATOR_LIST.save(deps.storage, &validator, &weight)?;
+            VALIDATOR_LIST.save(deps.storage, validator, &weight)?;
         }
 
         if sum != Decimal::one() {
@@ -671,17 +669,13 @@ mod query {
     pub fn validator_list(deps: Deps) -> StdResult<ValidatorsResponse> {
         let validators = VALIDATOR_LIST
             .range(deps.storage, None, None, Ascending)
-            .map(|pair| {
-                let (key, value) = pair.unwrap();
-                (key.to_string(), value)
-            })
-            .collect();
+            .collect::<StdResult<_>>()?;
 
         Ok(ValidatorsResponse { validators })
     }
 
     pub fn validator(deps: Deps, validator: String) -> StdResult<ValidatorWeightResponse> {
-        let weight = VALIDATOR_LIST.load(deps.storage, &deps.api.addr_validate(&validator)?)?;
+        let weight = VALIDATOR_LIST.load(deps.storage, validator)?;
         Ok(ValidatorWeightResponse { weight })
     }
 }
@@ -743,7 +737,7 @@ pub mod utils {
             .map(|validator| {
                 let (address, _) = validator?;
                 Ok(DistributionMsg::WithdrawDelegatorReward {
-                    validator: address.to_string(),
+                    validator: address,
                 })
             })
             .collect::<StdResult<Vec<_>>>()
@@ -752,13 +746,13 @@ pub mod utils {
     pub fn compute_redelegate_msgs(
         total_delegated: Uint128,
         denom: &str,
-        old_validator_list: Vec<(Addr, Decimal)>,
-        new_validator_list: Vec<(Addr, Decimal)>,
+        old_validator_list: Vec<(String, Decimal)>,
+        new_validator_list: Vec<(String, Decimal)>,
     ) -> StdResult<Vec<StakingMsg>> {
         let mut msgs: Vec<StakingMsg> = vec![];
 
-        let mut delegate_from: Vec<(Addr, Decimal)> = vec![];
-        let mut delegate_to: Vec<(Addr, Decimal)> = vec![];
+        let mut delegate_from: Vec<(String, Decimal)> = vec![];
+        let mut delegate_to: Vec<(String, Decimal)> = vec![];
 
         for (old_validator, old_value) in old_validator_list.clone() {
             // if old validator in new validator list, compute difference
@@ -844,10 +838,10 @@ pub mod utils {
         Ok(msgs)
     }
 
-    fn redelegate_msg(from: &Addr, to: &Addr, amount: Uint128, denom: String) -> StakingMsg {
+    fn redelegate_msg(from: &str, to: &str, amount: Uint128, denom: String) -> StakingMsg {
         StakingMsg::Redelegate {
-            src_validator: from.to_string(),
-            dst_validator: to.to_string(),
+            src_validator: from.to_owned(),
+            dst_validator: to.to_owned(),
             amount: coin(amount.u128(), denom),
         }
     }
