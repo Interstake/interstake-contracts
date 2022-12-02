@@ -56,7 +56,6 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
 
-    let val_addr = deps.api.addr_validate(&msg.staking_addr)?;
     VALIDATOR_LIST.save(deps.storage, &val_addr, &Decimal::one())?;
 
     // Initialize last payment block
