@@ -342,11 +342,18 @@ mod execute {
         let reward = reward[0].clone();
 
         // Decrease reward of team_commision
+        let mut commision_msgs = vec![];
         let reward = match config.team_commision {
-            TeamCommision::Some(commision) => coin(
-                (reward.amount - commision * reward.amount).u128(),
-                reward.denom,
-            ),
+            TeamCommision::Some(commision) => {
+                let commision_amount = commision * reward.amount;
+
+                commision_msgs.push(BankMsg::Send {
+                    to_address: config.owner.to_string(),
+                    amount: vec![coin(commision_amount.u128(), reward.denom.clone())],
+                });
+
+                coin((reward.amount - commision_amount).u128(), reward.denom)
+            }
             TeamCommision::None => reward,
         };
 
@@ -417,6 +424,7 @@ mod execute {
             .add_attribute("action", "restake")
             .add_attribute("amount", reward.amount)
             .add_messages(reward_msgs)
+            .add_messages(commision_msgs)
             .add_messages(delegate_msgs))
     }
 
