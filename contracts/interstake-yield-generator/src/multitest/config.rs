@@ -122,14 +122,14 @@ fn update_validator_list() {
 #[test]
 fn test_redelegate_replace_single_validator() {
     let validators1 = vec![
-        (Addr::unchecked("validator1"), Decimal::percent(50)),
-        (Addr::unchecked("validator2"), Decimal::percent(40)),
-        (Addr::unchecked("validator3"), Decimal::percent(10)),
+        ("validator1".to_owned(), Decimal::percent(50)),
+        ("validator2".to_owned(), Decimal::percent(40)),
+        ("validator3".to_owned(), Decimal::percent(10)),
     ];
     let validators2 = vec![
-        (Addr::unchecked("validator2"), Decimal::percent(40)),
-        (Addr::unchecked("validator3"), Decimal::percent(10)),
-        (Addr::unchecked("validator4"), Decimal::percent(50)),
+        ("validator2".to_owned(), Decimal::percent(40)),
+        ("validator3".to_owned(), Decimal::percent(10)),
+        ("validator4".to_owned(), Decimal::percent(50)),
     ];
 
     let msgs =
@@ -150,14 +150,14 @@ fn test_redelegate_replace_single_validator() {
 #[test]
 fn test_redelegate_replace_all_validators() {
     let validators1 = vec![
-        (Addr::unchecked("validator1"), Decimal::percent(50)),
-        (Addr::unchecked("validator2"), Decimal::percent(20)),
-        (Addr::unchecked("validator3"), Decimal::percent(30)),
+        ("validator1".to_owned(), Decimal::percent(50)),
+        ("validator2".to_owned(), Decimal::percent(20)),
+        ("validator3".to_owned(), Decimal::percent(30)),
     ];
     let validators2 = vec![
-        (Addr::unchecked("validator4"), Decimal::percent(25)),
-        (Addr::unchecked("validator5"), Decimal::percent(25)),
-        (Addr::unchecked("validator6"), Decimal::percent(50)),
+        ("validator4".to_owned(), Decimal::percent(25)),
+        ("validator5".to_owned(), Decimal::percent(25)),
+        ("validator6".to_owned(), Decimal::percent(50)),
     ];
 
     let msgs =
@@ -195,17 +195,17 @@ fn test_redelegate_replace_all_validators() {
 #[test]
 fn test_redelegate_update_and_replace_some() {
     let validators1 = vec![
-        (Addr::unchecked("validator1"), Decimal::percent(50)), // -10 (reduce)
-        (Addr::unchecked("validator2"), Decimal::percent(20)), //  +5 (increase)
-        (Addr::unchecked("validator3"), Decimal::percent(15)), // -15 (remove)
-        (Addr::unchecked("validator4"), Decimal::percent(10)), //   0 (unchanged)
-        (Addr::unchecked("validator5"), Decimal::percent(5)),  //  -5 (reduce)
+        ("validator1".to_owned(), Decimal::percent(50)), // -10 (reduce)
+        ("validator2".to_owned(), Decimal::percent(20)), //  +5 (increase)
+        ("validator3".to_owned(), Decimal::percent(15)), // -15 (remove)
+        ("validator4".to_owned(), Decimal::percent(10)), //   0 (unchanged)
+        ("validator5".to_owned(), Decimal::percent(5)),  //  -5 (reduce)
     ];
     let validators2 = vec![
-        (Addr::unchecked("validator1"), Decimal::percent(40)),
-        (Addr::unchecked("validator2"), Decimal::percent(25)),
-        (Addr::unchecked("validator4"), Decimal::percent(10)),
-        (Addr::unchecked("validator6"), Decimal::percent(25)), // +25 (added)
+        ("validator1".to_owned(), Decimal::percent(40)),
+        ("validator2".to_owned(), Decimal::percent(25)),
+        ("validator4".to_owned(), Decimal::percent(10)),
+        ("validator6".to_owned(), Decimal::percent(25)), // +25 (added)
     ];
 
     let msgs =
@@ -244,11 +244,11 @@ fn test_redelegate_update_and_replace_some() {
 #[test]
 fn test_redelegate_remove_some_validators() {
     let validators1 = vec![
-        (Addr::unchecked("validator1"), Decimal::percent(50)),
-        (Addr::unchecked("validator2"), Decimal::percent(20)),
-        (Addr::unchecked("validator3"), Decimal::percent(30)),
+        ("validator1".to_owned(), Decimal::percent(50)),
+        ("validator2".to_owned(), Decimal::percent(20)),
+        ("validator3".to_owned(), Decimal::percent(30)),
     ];
-    let validators2 = vec![(Addr::unchecked("validator2"), Decimal::percent(100))];
+    let validators2 = vec![("validator2".to_owned(), Decimal::percent(100))];
 
     let msgs =
         compute_redelegate_msgs(Uint128::new(100u128), "ujuno", validators1, validators2).unwrap();

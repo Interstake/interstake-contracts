@@ -13,7 +13,7 @@ use cw_multi_test::{
 use crate::msg::{
     ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
     InstantiateMsg, LastPaymentBlockResponse, QueryMsg, RewardResponse, TotalDelegatedResponse,
-    ValidatorWeightResponse, ValidatorsResponse,
+    ValidatorsResponse,
 };
 use crate::state::{ClaimDetails, Config, TeamCommision};
 
@@ -213,12 +213,8 @@ impl Suite {
     pub fn update_validator_list(
         &mut self,
         sender: &str,
-        validator_list: Vec<(String, Decimal)>,
+        new_validator_list: Vec<(String, Decimal)>,
     ) -> AnyResult<AppResponse> {
-        let new_validator_list = validator_list
-            .iter()
-            .map(|(addr, weight)| (Addr::unchecked(addr.as_str()), weight.to_owned()))
-            .collect::<Vec<(Addr, Decimal)>>();
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.contract.clone(),
@@ -303,16 +299,6 @@ impl Suite {
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::ValidatorList {})?;
         Ok(response.validators)
-    }
-
-    pub fn query_validator_weight(&self, validator: &str) -> AnyResult<ValidatorWeightResponse> {
-        let response: ValidatorWeightResponse = self.app.wrap().query_wasm_smart(
-            self.contract.clone(),
-            &QueryMsg::ValidatorWeight {
-                validator: validator.into(),
-            },
-        )?;
-        Ok(response)
     }
 
     pub fn query_delegated(&self, sender: impl Into<String>) -> AnyResult<DelegateResponse> {

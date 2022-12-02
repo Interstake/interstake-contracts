@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{Coin, Decimal, Uint128};
 
 use crate::state::{ClaimDetails, Config, TeamCommision};
 
@@ -27,7 +27,7 @@ pub enum ExecuteMsg {
     },
     /// Updates the list of validators that will be used for staking
     UpdateValidatorList {
-        new_validator_list: Vec<(Addr, Decimal)>,
+        new_validator_list: Vec<(String, Decimal)>,
     },
     /// Adds amount of tokens to common staking pool
     Delegate {},
