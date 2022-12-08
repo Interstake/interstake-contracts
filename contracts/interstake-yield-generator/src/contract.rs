@@ -450,6 +450,27 @@ mod execute {
             stake_details.total.amount = stake_details.total.amount.checked_sub(amount)?;
             Ok(stake_details)
         })?;
+
+        let mut commission_amount = Uint128::zero();
+        let amount = if config.team_commission == Decimal::zero() {
+            amount
+        } else {
+            commission_amount = config.team_commission * amount;
+
+            STAKE_DETAILS.update(
+                deps.storage,
+                &config.treasury,
+                |stake_details| -> StdResult<_> {
+                    let mut stake_details =
+                        unwrap_stake_details(stake_details, config.denom.clone(), env.block.height);
+                    stake_details.total.amount =
+                        stake_details.total.amount.checked_add(commission_amount)?;
+                    Ok(stake_details)
+                },
+            )?;
+            amount - commission_amount
+        };
+
         STAKE_DETAILS.update(deps.storage, &recipient, |stake_details| -> StdResult<_> {
             let mut stake_details =
                 unwrap_stake_details(stake_details, config.denom.clone(), env.block.height);
@@ -461,7 +482,9 @@ mod execute {
             .add_attribute("action", "transfer")
             .add_attribute("amount", amount)
             .add_attribute("sender", &sender)
-            .add_attribute("recipient", &recipient))
+            .add_attribute("recipient", &recipient)
+            .add_attribute("commission_amount", commission_amount)
+            .add_attribute("commission_recipient", &config.treasury))
     }
 
     pub fn undelegate_all(

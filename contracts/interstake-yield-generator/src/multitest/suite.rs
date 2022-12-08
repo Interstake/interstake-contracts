@@ -69,6 +69,11 @@ impl SuiteBuilder {
         self
     }
 
+    pub fn with_team_commission(mut self, commission: Decimal) -> Self {
+        self.team_commission = commission;
+        self
+    }
+
     #[track_caller]
     pub fn build(self) -> Suite {
         let owner = Addr::unchecked(self.owner.clone());
