@@ -74,9 +74,9 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig {
             owner,
-            team_commision,
+            team_commission,
             unbonding_period,
-        } => execute::update_config(deps, info, owner, team_commision, unbonding_period),
+        } => execute::update_config(deps, info, owner, team_commission, unbonding_period),
         ExecuteMsg::UpdateValidatorList { new_validator_list } => {
             execute::update_validator_list(deps, info, new_validator_list)
         }
@@ -120,8 +120,8 @@ mod execute {
             config.owner = owner;
         }
 
-        if let Some(team_commision) = new_team_commision {
-            config.team_commision = team_commision;
+        if let Some(team_commission) = new_team_commission {
+            config.team_commission = team_commission;
         }
 
         if let Some(unbonding_period) = new_unbonding_period {
@@ -410,7 +410,7 @@ mod execute {
             .add_attribute("action", "restake")
             .add_attribute("amount", reward.amount)
             .add_messages(reward_msgs)
-            .add_messages(commision_msgs)
+            .add_messages(commission_msgs)
             .add_messages(delegate_msgs))
     }
 

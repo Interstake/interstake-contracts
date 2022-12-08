@@ -46,7 +46,7 @@ fn one_user(i: u32) {
     let reward_amount = suite.query_reward().unwrap().amount;
     let new_delegated = delegated + reward_amount;
 
-    // Default validator commision is 5%, APR is 80%
+    // Default validator commission is 5%, APR is 80%
     // 100_000_000 * 0.95 * 0.8 * (1/365) = 208_218.72
     assert_approx_eq!(reward_amount.u128(), 208_219u128, "0.00001");
     suite.restake(owner.as_str()).unwrap();

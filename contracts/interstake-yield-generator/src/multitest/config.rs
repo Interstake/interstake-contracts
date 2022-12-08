@@ -81,7 +81,7 @@ fn proper_update() {
         suite.query_config().unwrap(),
         Config {
             owner: Addr::unchecked(new_owner),
-            team_commision: new_team_commision,
+            team_commission: new_team_commission,
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(new_unbonding_period),
         }

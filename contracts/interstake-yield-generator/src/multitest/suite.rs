@@ -126,7 +126,7 @@ impl SuiteBuilder {
                 &InstantiateMsg {
                     owner: self.owner.clone(),
                     staking_addr: VALIDATOR_1.to_owned(),
-                    team_commision: self.team_commision,
+                    team_commission: self.team_commission,
                     denom: self.denom,
                     unbonding_period: Some(TWENTY_EIGHT_DAYS),
                 },
@@ -203,7 +203,7 @@ impl Suite {
             self.contract.clone(),
             &ExecuteMsg::UpdateConfig {
                 owner: owner.into(),
-                team_commision: team_commision.into(),
+                team_commission: team_commission.into(),
                 unbonding_period: unbonding_period.into(),
             },
             &[],
