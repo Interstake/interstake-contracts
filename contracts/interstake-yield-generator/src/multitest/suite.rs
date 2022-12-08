@@ -15,7 +15,7 @@ use crate::msg::{
     InstantiateMsg, LastPaymentBlockResponse, QueryMsg, RewardResponse, TotalDelegatedResponse,
     ValidatorsResponse,
 };
-use crate::state::{ClaimDetails, Config, TeamCommision};
+use crate::state::{ClaimDetails, Config};
 
 pub const TWENTY_EIGHT_DAYS: u64 = 3600 * 24 * 28;
 
@@ -34,7 +34,7 @@ where
 #[derive(Debug)]
 pub struct SuiteBuilder {
     pub owner: String,
-    pub team_commision: Option<Decimal>,
+    pub team_commision: Decimal,
     pub validator_commission: Decimal,
     pub funds: Vec<(Addr, Vec<Coin>)>,
     pub denom: String,
@@ -47,7 +47,7 @@ impl SuiteBuilder {
     pub fn new() -> Self {
         Self {
             owner: "owner".to_owned(),
-            team_commision: None,
+            team_commision: Decimal::zero(),
             validator_commission: Decimal::percent(5),
             funds: vec![],
             denom: "ujuno".to_owned(),
@@ -195,7 +195,7 @@ impl Suite {
         &mut self,
         sender: &str,
         owner: impl Into<Option<String>>,
-        team_commision: impl Into<Option<TeamCommision>>,
+        team_commision: impl Into<Option<Decimal>>,
         unbonding_period: impl Into<Option<u64>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
