@@ -103,6 +103,8 @@ pub fn execute(
 
 mod execute {
 
+    use cosmwasm_std::Fraction;
+
     use crate::state::VALIDATOR_LIST;
 
     use super::{
@@ -438,16 +440,17 @@ mod execute {
         amount: Uint128,
     ) -> Result<Response, ContractError> {
         let recipient = deps.api.addr_validate(&recipient)?;
-        let denom = CONFIG.load(deps.as_ref().storage)?.denom;
+        let config = CONFIG.load(deps.as_ref().storage)?;
 
         STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
             let mut stake_details =
-                unwrap_stake_details(stake_details, denom.clone(), env.block.height);
+                unwrap_stake_details(stake_details, config.denom.clone(), env.block.height);
             stake_details.total.amount = stake_details.total.amount.checked_sub(amount)?;
             Ok(stake_details)
         })?;
         STAKE_DETAILS.update(deps.storage, &recipient, |stake_details| -> StdResult<_> {
-            let mut stake_details = unwrap_stake_details(stake_details, denom, env.block.height);
+            let mut stake_details =
+                unwrap_stake_details(stake_details, config.denom.clone(), env.block.height);
             stake_details.total.amount = stake_details.total.amount.checked_add(amount)?;
             Ok(stake_details)
         })?;
