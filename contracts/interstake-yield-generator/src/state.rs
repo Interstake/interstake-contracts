@@ -6,16 +6,9 @@ use cw_storage_plus::{Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum TeamCommision {
-    Some(Decimal),
-    None,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 pub struct Config {
     pub owner: Addr,
-    pub team_commision: TeamCommision,
+    pub team_commision: Decimal,
     pub denom: String,
     pub unbonding_period: Timestamp,
 }

@@ -5,7 +5,7 @@ use cosmwasm_std::{coin, Addr, Decimal, StakingMsg, Timestamp, Uint128};
 use crate::contract::utils::compute_redelegate_msgs;
 use crate::error::ContractError;
 use crate::multitest::suite::{two_false_validators, validator_list};
-use crate::state::{Config, TeamCommision};
+use crate::state::Config;
 
 #[test]
 fn update_not_owner() {
@@ -26,7 +26,7 @@ fn proper_update() {
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
-            team_commision: TeamCommision::None,
+            team_commision: Decimal::zero(),
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
         }
@@ -39,21 +39,21 @@ fn proper_update() {
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
-            team_commision: TeamCommision::None,
+            team_commision: Decimal::zero(),
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
         }
     );
 
-    let new_team_commision = TeamCommision::Some(Decimal::percent(5));
+    let new_team_commision = Decimal::percent(5);
     suite
-        .update_config(owner.as_str(), None, new_team_commision.clone(), None)
+        .update_config(owner.as_str(), None, new_team_commision, None)
         .unwrap();
     assert_eq!(
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
-            team_commision: new_team_commision.clone(),
+            team_commision: new_team_commision,
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
         }
@@ -67,7 +67,7 @@ fn proper_update() {
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
-            team_commision: new_team_commision.clone(),
+            team_commision: new_team_commision,
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(new_unbonding_period),
         }

@@ -9,15 +9,14 @@ use cw2::set_contract_version;
 use cw_utils::ensure_from_older_version;
 
 use crate::error::ContractError;
-use crate::migration::migrate_config;
 use crate::msg::{
     ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
     InstantiateMsg, LastPaymentBlockResponse, MigrateMsg, QueryMsg, RewardResponse,
     TotalDelegatedResponse,
 };
 use crate::state::{
-    ClaimDetails, Config, Stake, StakeDetails, TeamCommision, CONFIG, LAST_PAYMENT_BLOCK,
-    STAKE_DETAILS, TOTAL, UNBONDING_CLAIMS, VALIDATOR_LIST,
+    ClaimDetails, Config, Stake, StakeDetails, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS, TOTAL,
+    UNBONDING_CLAIMS, VALIDATOR_LIST,
 };
 
 use std::collections::HashMap;
@@ -36,12 +35,6 @@ pub fn instantiate(
 
     let owner = deps.api.addr_validate(&msg.owner)?;
 
-    let team_commision = if let Some(commision) = msg.team_commision {
-        TeamCommision::Some(commision)
-    } else {
-        TeamCommision::None
-    };
-
     let unbonding_period = if let Some(unbonding_period) = msg.unbonding_period {
         Timestamp::from_seconds(unbonding_period)
     } else {
@@ -50,7 +43,7 @@ pub fn instantiate(
 
     let config = Config {
         owner: owner.clone(),
-        team_commision,
+        team_commision: msg.team_commision,
         denom: msg.denom.clone(),
         unbonding_period,
     };
@@ -60,10 +53,7 @@ pub fn instantiate(
         .add_attribute("action", "instantiate")
         .add_attribute("owner", owner.into_string())
         .add_attribute("staking_addr", &msg.staking_addr)
-        .add_attribute(
-            "team_commision",
-            msg.team_commision.unwrap_or_default().to_string(),
-        );
+        .add_attribute("team_commision", msg.team_commision.to_string());
 
     VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
 
@@ -117,7 +107,7 @@ mod execute {
         deps: DepsMut,
         info: MessageInfo,
         new_owner: Option<String>,
-        new_team_commision: Option<TeamCommision>,
+        new_team_commision: Option<Decimal>,
         new_unbonding_period: Option<u64>,
     ) -> Result<Response, ContractError> {
         let mut config = CONFIG.load(deps.storage)?;
@@ -340,18 +330,17 @@ mod execute {
 
         // Decrease reward of team_commision
         let mut commision_msgs = vec![];
-        let reward = match config.team_commision {
-            TeamCommision::Some(commision) => {
-                let commision_amount = commision * reward.amount;
+        let reward = if config.team_commision == Decimal::zero() {
+            reward
+        } else {
+            let commision_amount = config.team_commision * reward.amount;
 
-                commision_msgs.push(BankMsg::Send {
-                    to_address: config.owner.to_string(),
-                    amount: vec![coin(commision_amount.u128(), reward.denom.clone())],
-                });
+            commision_msgs.push(BankMsg::Send {
+                to_address: config.owner.to_string(),
+                amount: vec![coin(commision_amount.u128(), reward.denom.clone())],
+            });
 
-                coin((reward.amount - commision_amount).u128(), reward.denom)
-            }
-            TeamCommision::None => reward,
+            coin((reward.amount - commision_amount).u128(), reward.denom)
         };
 
         let reward_msgs = distribute_msgs_for_validators(deps.as_ref())?;
@@ -569,7 +558,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 mod query {
-
     use crate::{
         msg::{ValidatorWeightResponse, ValidatorsResponse},
         state::VALIDATOR_LIST,
@@ -682,9 +670,7 @@ mod query {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    let storage_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    migrate_config(deps, &storage_version)?;
+    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::new())
 }
 
@@ -736,9 +722,7 @@ pub mod utils {
             .range(deps.storage, None, None, Ascending)
             .map(|validator| {
                 let (address, _) = validator?;
-                Ok(DistributionMsg::WithdrawDelegatorReward {
-                    validator: address,
-                })
+                Ok(DistributionMsg::WithdrawDelegatorReward { validator: address })
             })
             .collect::<StdResult<Vec<_>>>()
     }

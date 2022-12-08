@@ -1,6 +1,5 @@
 pub mod contract;
 mod error;
-mod migration;
 pub mod msg;
 #[cfg(test)]
 mod multitest;

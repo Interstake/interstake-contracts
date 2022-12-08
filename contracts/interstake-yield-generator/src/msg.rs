@@ -1,7 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Coin, Decimal, Uint128};
 
-use crate::state::{ClaimDetails, Config, TeamCommision};
+use crate::state::{ClaimDetails, Config};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -10,7 +10,7 @@ pub struct InstantiateMsg {
     /// Address of validator
     pub staking_addr: String,
     /// Commission of Intrastake team
-    pub team_commision: Option<Decimal>,
+    pub team_commision: Decimal,
     /// Used denom
     pub denom: String,
     /// Unbondig period in seconds. Default: 2_419_200 (28 days)
@@ -22,7 +22,7 @@ pub enum ExecuteMsg {
     /// Only called by owner
     UpdateConfig {
         owner: Option<String>,
-        team_commision: Option<TeamCommision>,
+        team_commision: Option<Decimal>,
         unbonding_period: Option<u64>,
     },
     /// Updates the list of validators that will be used for staking
