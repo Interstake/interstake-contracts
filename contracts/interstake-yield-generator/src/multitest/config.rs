@@ -12,7 +12,7 @@ fn update_not_owner() {
     let mut suite = SuiteBuilder::new().build();
 
     let err = suite
-        .update_config("random_user", None, None, None)
+        .update_config("random_user", None, None, None, None)
         .unwrap_err();
     assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
 }
@@ -22,10 +22,12 @@ fn proper_update() {
     let mut suite = SuiteBuilder::new().build();
 
     let owner = suite.owner();
+    let treasury = suite.treasury();
     assert_eq!(
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
+            treasury: treasury.clone(),
             team_commission: Decimal::zero(),
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
@@ -33,12 +35,13 @@ fn proper_update() {
     );
 
     suite
-        .update_config(owner.as_str(), None, None, None)
+        .update_config(owner.as_str(), None, None, None, None)
         .unwrap();
     assert_eq!(
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
+            treasury: treasury.clone(),
             team_commission: Decimal::zero(),
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
@@ -47,13 +50,20 @@ fn proper_update() {
 
     let new_team_commission = Decimal::percent(5);
     suite
-        .update_config(owner.as_str(), None, new_team_commission, None)
+        .update_config(
+            owner.as_str(),
+            None,
+            None,
+            new_team_commission.clone(),
+            None,
+        )
         .unwrap();
     assert_eq!(
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
-            team_commission: new_team_commission,
+            treasury: treasury.clone(),
+            team_commission: new_team_commission.clone(),
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
         }
@@ -61,13 +71,29 @@ fn proper_update() {
 
     let new_unbonding_period = 300_000_000u64;
     suite
-        .update_config(owner.as_str(), None, None, new_unbonding_period)
+        .update_config(owner.as_str(), None, None, None, None, new_unbonding_period)
         .unwrap();
     assert_eq!(
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
-            team_commission: new_team_commission,
+            treasury: treasury.clone(),
+            team_commission: new_team_commission.clone(),
+            denom: "ujuno".to_owned(),
+            unbonding_period: Timestamp::from_seconds(new_unbonding_period),
+        }
+    );
+
+    let new_treasury = "new_treasury".to_owned();
+    suite
+        .update_config(owner.as_str(), None, new_treasury.clone(), None, None)
+        .unwrap();
+    assert_eq!(
+        suite.query_config().unwrap(),
+        Config {
+            owner: owner.clone(),
+            treasury: Addr::unchecked(new_treasury.clone()),
+            team_commission: new_team_commission.clone(),
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(new_unbonding_period),
         }
@@ -75,12 +101,13 @@ fn proper_update() {
 
     let new_owner = "new_owner".to_owned();
     suite
-        .update_config(owner.as_str(), new_owner.clone(), None, None)
+        .update_config(owner.as_str(), new_owner.clone(), None, None, None)
         .unwrap();
     assert_eq!(
         suite.query_config().unwrap(),
         Config {
             owner: Addr::unchecked(new_owner),
+            treasury: Addr::unchecked(new_treasury),
             team_commission: new_team_commission,
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(new_unbonding_period),
@@ -89,7 +116,7 @@ fn proper_update() {
 
     // confirm that now updating with old owner results in error
     let err = suite
-        .update_config(owner.as_str(), None, None, None)
+        .update_config(owner.as_str(), None, None, None, None)
         .unwrap_err();
     assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
 }

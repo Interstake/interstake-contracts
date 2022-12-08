@@ -34,6 +34,7 @@ where
 #[derive(Debug)]
 pub struct SuiteBuilder {
     pub owner: String,
+    pub treasury: String,
     pub team_commission: Decimal,
     pub validator_commission: Decimal,
     pub funds: Vec<(Addr, Vec<Coin>)>,
@@ -49,6 +50,7 @@ impl SuiteBuilder {
             owner: "owner".to_owned(),
             team_commission: Decimal::zero(),
             validator_commission: Decimal::percent(5),
+            treasury: "treasury".to_owned(),
             funds: vec![],
             denom: "ujuno".to_owned(),
         }
@@ -70,6 +72,7 @@ impl SuiteBuilder {
     #[track_caller]
     pub fn build(self) -> Suite {
         let owner = Addr::unchecked(self.owner.clone());
+        let treasury = Addr::unchecked(self.treasury.clone());
         let funds = self.funds;
 
         let mut app: App = App::default();
@@ -125,6 +128,7 @@ impl SuiteBuilder {
                 owner.clone(),
                 &InstantiateMsg {
                     owner: self.owner.clone(),
+                    treasury: self.treasury.clone(),
                     staking_addr: VALIDATOR_1.to_owned(),
                     team_commission: self.team_commission,
                     denom: self.denom,
@@ -139,6 +143,7 @@ impl SuiteBuilder {
         Suite {
             app,
             owner,
+            treasury,
             contract: yield_generator_contract,
         }
     }
@@ -147,6 +152,7 @@ impl SuiteBuilder {
 pub struct Suite {
     pub app: App,
     owner: Addr,
+    treasury: Addr,
     contract: Addr,
 }
 
@@ -172,6 +178,10 @@ impl Suite {
         self.owner.clone()
     }
 
+    pub fn treasury(&self) -> Addr {
+        self.treasury.clone()
+    }
+
     pub fn advance_height(&mut self, blocks: u64) {
         self.app.update_block(|block: &mut BlockInfo| {
             block.time = block.time.plus_seconds(5 * blocks);
@@ -195,6 +205,7 @@ impl Suite {
         &mut self,
         sender: &str,
         owner: impl Into<Option<String>>,
+        treasury: impl Into<Option<String>>,
         team_commission: impl Into<Option<Decimal>>,
         unbonding_period: impl Into<Option<u64>>,
     ) -> AnyResult<AppResponse> {
@@ -203,6 +214,7 @@ impl Suite {
             self.contract.clone(),
             &ExecuteMsg::UpdateConfig {
                 owner: owner.into(),
+                treasury: treasury.into(),
                 team_commission: team_commission.into(),
                 unbonding_period: unbonding_period.into(),
             },
