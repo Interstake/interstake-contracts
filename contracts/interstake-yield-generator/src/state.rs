@@ -9,7 +9,7 @@ use cw_storage_plus::{Item, Map};
 pub struct Config {
     pub owner: Addr,
     pub treasury: Addr,
-    pub team_commision: Decimal,
+    pub team_commission: Decimal,
     pub denom: String,
     pub unbonding_period: Timestamp,
 }

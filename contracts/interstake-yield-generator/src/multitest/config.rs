@@ -71,7 +71,7 @@ fn proper_update() {
 
     let new_unbonding_period = 300_000_000u64;
     suite
-        .update_config(owner.as_str(), None, None, None, None, new_unbonding_period)
+        .update_config(owner.as_str(), None, None, None, new_unbonding_period)
         .unwrap();
     assert_eq!(
         suite.query_config().unwrap(),

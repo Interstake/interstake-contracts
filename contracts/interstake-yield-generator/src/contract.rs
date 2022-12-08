@@ -9,6 +9,8 @@ use cw2::set_contract_version;
 use cw_utils::ensure_from_older_version;
 
 use crate::error::ContractError;
+
+use crate::migration::migrate_config;
 use crate::msg::{
     ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
     InstantiateMsg, LastPaymentBlockResponse, MigrateMsg, QueryMsg, RewardResponse,
@@ -45,7 +47,7 @@ pub fn instantiate(
     let config = Config {
         owner: owner.clone(),
         treasury,
-        team_commission,
+        team_commission: msg.team_commission,
         denom: msg.denom.clone(),
         unbonding_period,
     };
@@ -120,7 +122,7 @@ mod execute {
         info: MessageInfo,
         new_owner: Option<String>,
         treasury: Option<String>,
-        new_team_commission: Option<TeamCommission>,
+        new_team_commission: Option<Decimal>,
         new_unbonding_period: Option<u64>,
     ) -> Result<Response, ContractError> {
         let mut config = CONFIG.load(deps.storage)?;

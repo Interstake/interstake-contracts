@@ -2,19 +2,19 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, DepsMut, Timestamp};
+use cosmwasm_std::{Addr, Decimal, DepsMut, Timestamp};
 use cw_storage_plus::Item;
 
 use crate::error::ContractError;
 use crate::msg::MigrateMsg;
-use crate::state::{Config, TeamCommission, CONFIG};
+use crate::state::{Config, CONFIG};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct ConfigV0_1_5 {
     pub owner: Addr,
     // pub staking_addr: String, // this field is removed in 0.1.5
-    pub team_commission: TeamCommission,
+    pub team_commission: Decimal,
     pub denom: String,
 }
 

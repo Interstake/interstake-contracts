@@ -25,7 +25,7 @@ pub enum ExecuteMsg {
     UpdateConfig {
         owner: Option<String>,
         treasury: Option<String>,
-        team_commision: Option<Decimal>,
+        team_commission: Option<Decimal>,
         unbonding_period: Option<u64>,
     },
     /// Updates the list of validators that will be used for staking
