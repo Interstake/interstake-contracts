@@ -26,7 +26,7 @@ fn proper_update() {
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
-            team_commision: Decimal::zero(),
+            team_commission: Decimal::zero(),
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
         }
@@ -39,21 +39,21 @@ fn proper_update() {
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
-            team_commision: Decimal::zero(),
+            team_commission: Decimal::zero(),
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
         }
     );
 
-    let new_team_commision = Decimal::percent(5);
+    let new_team_commission = Decimal::percent(5);
     suite
-        .update_config(owner.as_str(), None, new_team_commision, None)
+        .update_config(owner.as_str(), None, new_team_commission, None)
         .unwrap();
     assert_eq!(
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
-            team_commision: new_team_commision,
+            team_commission: new_team_commission,
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
         }
@@ -67,7 +67,7 @@ fn proper_update() {
         suite.query_config().unwrap(),
         Config {
             owner: owner.clone(),
-            team_commision: new_team_commision,
+            team_commission: new_team_commission,
             denom: "ujuno".to_owned(),
             unbonding_period: Timestamp::from_seconds(new_unbonding_period),
         }

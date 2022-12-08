@@ -8,6 +8,7 @@ use cw_storage_plus::{Item, Map};
 #[serde(rename_all = "snake_case")]
 pub struct Config {
     pub owner: Addr,
+    pub treasury: Addr,
     pub team_commision: Decimal,
     pub denom: String,
     pub unbonding_period: Timestamp,

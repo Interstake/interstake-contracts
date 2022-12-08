@@ -34,6 +34,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let owner = deps.api.addr_validate(&msg.owner)?;
+    let treasury = deps.api.addr_validate(&msg.treasury)?;
 
     let unbonding_period = if let Some(unbonding_period) = msg.unbonding_period {
         Timestamp::from_seconds(unbonding_period)
@@ -43,7 +44,8 @@ pub fn instantiate(
 
     let config = Config {
         owner: owner.clone(),
-        team_commision: msg.team_commision,
+        treasury,
+        team_commission,
         denom: msg.denom.clone(),
         unbonding_period,
     };
@@ -53,7 +55,7 @@ pub fn instantiate(
         .add_attribute("action", "instantiate")
         .add_attribute("owner", owner.into_string())
         .add_attribute("staking_addr", &msg.staking_addr)
-        .add_attribute("team_commision", msg.team_commision.to_string());
+        .add_attribute("team_commission", msg.team_commission.to_string());
 
     VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
 
@@ -74,9 +76,17 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig {
             owner,
+            treasury,
             team_commission,
             unbonding_period,
-        } => execute::update_config(deps, info, owner, team_commission, unbonding_period),
+        } => execute::update_config(
+            deps,
+            info,
+            owner,
+            treasury,
+            team_commission,
+            unbonding_period,
+        ),
         ExecuteMsg::UpdateValidatorList { new_validator_list } => {
             execute::update_validator_list(deps, info, new_validator_list)
         }
@@ -107,7 +117,8 @@ mod execute {
         deps: DepsMut,
         info: MessageInfo,
         new_owner: Option<String>,
-        new_team_commision: Option<Decimal>,
+        treasury: Option<String>,
+        new_team_commission: Option<TeamCommission>,
         new_unbonding_period: Option<u64>,
     ) -> Result<Response, ContractError> {
         let mut config = CONFIG.load(deps.storage)?;
@@ -118,6 +129,11 @@ mod execute {
         if let Some(owner) = new_owner {
             let owner = deps.api.addr_validate(&owner)?;
             config.owner = owner;
+        }
+
+        if let Some(treasury) = treasury {
+            let treasury = deps.api.addr_validate(&treasury)?;
+            config.treasury = treasury;
         }
 
         if let Some(team_commission) = new_team_commission {
@@ -328,19 +344,19 @@ mod execute {
         }
         let reward = reward[0].clone();
 
-        // Decrease reward of team_commision
-        let mut commision_msgs = vec![];
-        let reward = if config.team_commision == Decimal::zero() {
+        // Decrease reward of team_commission
+        let mut commission_msgs = vec![];
+        let reward = if config.team_commission == Decimal::zero() {
             reward
         } else {
-            let commision_amount = config.team_commision * reward.amount;
+            let commission_amount = config.team_commission * reward.amount;
 
-            commision_msgs.push(BankMsg::Send {
-                to_address: config.owner.to_string(),
-                amount: vec![coin(commision_amount.u128(), reward.denom.clone())],
+            commission_msgs.push(BankMsg::Send {
+                to_address: config.treasury.to_string(),
+                amount: vec![coin(commission_amount.u128(), reward.denom.clone())],
             });
 
-            coin((reward.amount - commision_amount).u128(), reward.denom)
+            coin((reward.amount - commission_amount).u128(), reward.denom)
         };
 
         let reward_msgs = distribute_msgs_for_validators(deps.as_ref())?;
@@ -667,8 +683,10 @@ mod query {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let storage_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    migrate_config(deps, &storage_version, msg)?;
     Ok(Response::new())
 }
 

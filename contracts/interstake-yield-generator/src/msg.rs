@@ -7,10 +7,12 @@ use crate::state::{ClaimDetails, Config};
 pub struct InstantiateMsg {
     /// Multisig contract that is allowed to perform admin operations
     pub owner: String,
+    /// account which receives commissions
+    pub treasury: String,
     /// Address of validator
     pub staking_addr: String,
     /// Commission of Intrastake team
-    pub team_commision: Decimal,
+    pub team_commission: Decimal,
     /// Used denom
     pub denom: String,
     /// Unbondig period in seconds. Default: 2_419_200 (28 days)
@@ -22,6 +24,7 @@ pub enum ExecuteMsg {
     /// Only called by owner
     UpdateConfig {
         owner: Option<String>,
+        treasury: Option<String>,
         team_commision: Option<Decimal>,
         unbonding_period: Option<u64>,
     },
@@ -71,7 +74,9 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub treasury: String,
+}
 
 #[cw_serde]
 pub struct ConfigResponse {
