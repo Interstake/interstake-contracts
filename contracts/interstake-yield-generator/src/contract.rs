@@ -125,7 +125,7 @@ pub fn execute(
 
 mod execute {
 
-    use cosmwasm_std::Fraction;
+    
     use cw_utils::Expiration;
 
     use crate::state::{ALLOWED_ADDRESSES, VALIDATOR_LIST};
@@ -694,7 +694,7 @@ mod execute {
 
     pub fn remove_allowed_address(
         deps: DepsMut,
-        env: Env,
+        _env: Env,
         info: MessageInfo,
         address: String,
     ) -> Result<Response, ContractError> {
