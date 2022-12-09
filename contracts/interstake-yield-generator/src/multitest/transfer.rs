@@ -1,10 +1,11 @@
 use super::suite::SuiteBuilder;
 
 use cosmwasm_std::{coin, coins, Decimal, Uint128};
+use cw_utils::Expiration;
 
 use crate::{
     msg::{DelegateResponse, TotalDelegatedResponse},
-    multitest::suite::validator_list,
+    multitest::suite::{validator_list, TWENTY_EIGHT_DAYS},
     state::Config,
 };
 use test_case::test_case;
@@ -81,7 +82,7 @@ fn transfer_with_commission() {
         .build();
 
     let config: Config = suite.query_config().unwrap();
-    assert_eq!(config.team_commission, Decimal::percent(10));
+    assert_eq!(config.restake_commission, Decimal::percent(10));
 
     suite.delegate(user1.0, coin(user1.1, "ujuno")).unwrap();
 
@@ -135,4 +136,87 @@ fn transfer_with_commission() {
             amount: coin(50_002_711u128, "ujuno")
         }
     );
+}
+
+#[test]
+fn transfer_with_allowed_address() {
+    let user1 = ("user1", 50_000_000u128);
+    let user2 = "user2";
+    let allowed1 = "allowed_address1";
+    let allowed2 = "allowed_address2";
+    let mut suite = SuiteBuilder::new()
+        .with_funds(user1.0, &coins(user1.1, "ujuno"))
+        .with_team_commission(Decimal::percent(10))
+        .build();
+
+    let config: Config = suite.query_config().unwrap();
+    assert_eq!(config.restake_commission, Decimal::percent(10));
+
+    suite
+        .update_allowed_addr(suite.owner().as_str(), allowed1, None)
+        .unwrap();
+
+    let expiration = suite.query_allowed_addr(allowed1).unwrap();
+    assert_eq!(
+        expiration,
+        Expiration::AtTime(suite.app.block_info().time.plus_seconds(TWENTY_EIGHT_DAYS))
+    );
+    suite
+        .update_allowed_addr(
+            suite.owner().as_str(),
+            allowed2,
+            Some(
+                suite
+                    .app
+                    .block_info()
+                    .time
+                    .plus_seconds(TWENTY_EIGHT_DAYS - 1)
+                    .seconds(),
+            ),
+        )
+        .unwrap_err();
+
+    // suite.advance_height(1);
+    // suite
+    //     .update_allowed_addr(
+    //         suite.owner().as_str(),
+    //         allowed2,
+    //         Some(
+    //             suite
+    //                 .app
+    //                 .block_info()
+    //                 .time
+    //                 .plus_seconds(TWENTY_EIGHT_DAYS + 1)
+    //                 .seconds(),
+    //         ),
+    //     )
+    //     .unwrap();
+
+    // let expiration2 = suite.query_allowed_addr(allowed2).unwrap();
+    // assert_eq!(
+    //     expiration2,
+    //     Expiration::AtTime(
+    //         suite
+    //             .app
+    //             .block_info()
+    //             .time
+    //             .plus_seconds(TWENTY_EIGHT_DAYS + 1)
+    //     )
+    // );
+
+    suite.delegate(user1.0, coin(user1.1, "ujuno")).unwrap();
+    suite.advance_height(500);
+    suite.restake(suite.owner().as_str()).unwrap();
+
+    suite
+        .transfer(user1.0, user2, 30_000_000u128.into())
+        .unwrap();
+
+    let user_1_delegated = suite.query_delegated(user1.0).unwrap();
+    let user_2_delegated = suite.query_delegated(user2).unwrap();
+    let treasury_delegated = suite.query_delegated(suite.treasury()).unwrap();
+
+    assert_eq!(user_1_delegated.total_staked.u128(), 20_002_711u128);
+    assert_eq!(user_2_delegated.total_staked.u128(), 27_000_000u128);
+    assert_eq!(treasury_delegated.total_staked.u128(), 3_000_000u128);
 }

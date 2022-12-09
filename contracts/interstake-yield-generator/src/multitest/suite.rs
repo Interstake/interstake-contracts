@@ -1,4 +1,5 @@
 use anyhow::Result as AnyResult;
+use cw_utils::Expiration;
 use schemars::JsonSchema;
 use std::fmt;
 
@@ -11,9 +12,9 @@ use cw_multi_test::{
 };
 
 use crate::msg::{
-    ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
-    InstantiateMsg, LastPaymentBlockResponse, QueryMsg, RewardResponse, TotalDelegatedResponse,
-    ValidatorsResponse,
+    AllowedAddrListResponse, AllowedAddrResponse, ClaimsResponse, ConfigResponse, DelegateResponse,
+    DelegatedResponse, ExecuteMsg, InstantiateMsg, LastPaymentBlockResponse, QueryMsg,
+    RewardResponse, TotalDelegatedResponse, ValidatorsResponse,
 };
 use crate::state::{ClaimDetails, Config};
 
@@ -35,7 +36,8 @@ where
 pub struct SuiteBuilder {
     pub owner: String,
     pub treasury: String,
-    pub team_commission: Decimal,
+    pub restake_commission: Decimal,
+    pub transfer_commission: Decimal,
     pub validator_commission: Decimal,
     pub funds: Vec<(Addr, Vec<Coin>)>,
     pub denom: String,
@@ -48,7 +50,8 @@ impl SuiteBuilder {
     pub fn new() -> Self {
         Self {
             owner: "owner".to_owned(),
-            team_commission: Decimal::zero(),
+            restake_commission: Decimal::zero(),
+            transfer_commission: Decimal::zero(),
             validator_commission: Decimal::percent(5),
             treasury: "treasury".to_owned(),
             funds: vec![],
@@ -70,7 +73,7 @@ impl SuiteBuilder {
     }
 
     pub fn with_team_commission(mut self, commission: Decimal) -> Self {
-        self.team_commission = commission;
+        self.restake_commission = commission;
         self
     }
 
@@ -135,7 +138,8 @@ impl SuiteBuilder {
                     owner: self.owner.clone(),
                     treasury: self.treasury.clone(),
                     staking_addr: VALIDATOR_1.to_owned(),
-                    team_commission: self.team_commission,
+                    restake_commission: self.restake_commission,
+                    transfer_commission: self.restake_commission,
                     denom: self.denom,
                     unbonding_period: Some(TWENTY_EIGHT_DAYS),
                 },
@@ -211,7 +215,8 @@ impl Suite {
         sender: &str,
         owner: impl Into<Option<String>>,
         treasury: impl Into<Option<String>>,
-        team_commission: impl Into<Option<Decimal>>,
+        restake_commission: impl Into<Option<Decimal>>,
+        transfer_commission: impl Into<Option<Decimal>>,
         unbonding_period: impl Into<Option<u64>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
@@ -220,7 +225,8 @@ impl Suite {
             &ExecuteMsg::UpdateConfig {
                 owner: owner.into(),
                 treasury: treasury.into(),
-                team_commission: team_commission.into(),
+                restake_commission: restake_commission.into(),
+                transfer_commission: transfer_commission.into(),
                 unbonding_period: unbonding_period.into(),
             },
             &[],
@@ -302,6 +308,34 @@ impl Suite {
         )
     }
 
+    pub fn update_allowed_addr(
+        &mut self,
+        sender: &str,
+        addr: &str,
+        expires: Option<u64>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::UpdateAllowedAddr {
+                address: addr.into(),
+                expires,
+            },
+            &[],
+        )
+    }
+
+    pub fn remove_allowed_addr(&mut self, sender: &str, addr: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::RemoveAllowedAddr {
+                address: addr.into(),
+            },
+            &[],
+        )
+    }
+
     pub fn query_config(&self) -> AnyResult<Config> {
         let response: ConfigResponse = self
             .app
@@ -369,5 +403,23 @@ impl Suite {
             }),
         )?;
         Ok(response.delegations)
+    }
+
+    pub fn query_allowed_addr(&self, address: &str) -> AnyResult<Expiration> {
+        let response: AllowedAddrResponse = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::AllowedAddr {
+                address: address.to_string(),
+            },
+        )?;
+        Ok(response.expires)
+    }
+
+    pub fn query_allowed_list(&self) -> AnyResult<Vec<(Addr, Expiration)>> {
+        let response: AllowedAddrListResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::AllowedAddrList {})?;
+        Ok(response.allowed_list)
     }
 }

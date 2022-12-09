@@ -1,5 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Coin, Decimal, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
+use cw_utils::Expiration;
 
 use crate::state::{ClaimDetails, Config};
 
@@ -11,8 +12,10 @@ pub struct InstantiateMsg {
     pub treasury: String,
     /// Address of validator
     pub staking_addr: String,
-    /// Commission of Intrastake team
-    pub team_commission: Decimal,
+    /// Commission for restaking
+    pub restake_commission: Decimal,
+    /// Commission for transfers
+    pub transfer_commission: Decimal,
     /// Used denom
     pub denom: String,
     /// Unbondig period in seconds. Default: 2_419_200 (28 days)
@@ -25,7 +28,8 @@ pub enum ExecuteMsg {
     UpdateConfig {
         owner: Option<String>,
         treasury: Option<String>,
-        team_commission: Option<Decimal>,
+        restake_commission: Option<Decimal>,
+        transfer_commission: Option<Decimal>,
         unbonding_period: Option<u64>,
     },
     /// Updates the list of validators that will be used for staking
@@ -41,9 +45,21 @@ pub enum ExecuteMsg {
     /// Claims rewards and then stake them; Only called by owner
     Restake {},
     /// Transfer amount of staked tokens to other address
-    Transfer { recipient: String, amount: Uint128 },
+    Transfer {
+        recipient: String,
+        amount: Uint128,
+        commission_address: Option<String>,
+    },
     /// Undelegates all tokens
     UndelegateAll {},
+    /// adds (or updates) address to allowed list
+    UpdateAllowedAddr {
+        address: String,
+        /// seconds since epoch
+        expires: Option<u64>,
+    },
+    /// removes address from allowed list
+    RemoveAllowedAddr { address: String },
 }
 
 #[cw_serde]
@@ -71,11 +87,18 @@ pub enum QueryMsg {
     ValidatorList {},
     #[returns(ValidatorWeightResponse)]
     ValidatorWeight { validator: String },
+    /// returns the expiration date if an address is found in the allowed list
+    #[returns(AllowedAddrResponse)]
+    AllowedAddr { address: String },
+    /// returns the list of allowed addresses
+    #[returns(AllowedAddrListResponse)]
+    AllowedAddrList {},
 }
 
 #[cw_serde]
 pub struct MigrateMsg {
     pub treasury: String,
+    pub transfer_commission: Decimal,
 }
 
 #[cw_serde]
@@ -123,4 +146,14 @@ pub struct ValidatorsResponse {
 #[cw_serde]
 pub struct ValidatorWeightResponse {
     pub weight: Decimal,
+}
+
+#[cw_serde]
+pub struct AllowedAddrResponse {
+    pub expires: Expiration,
+}
+
+#[cw_serde]
+pub struct AllowedAddrListResponse {
+    pub allowed_list: Vec<(Addr, Expiration)>,
 }

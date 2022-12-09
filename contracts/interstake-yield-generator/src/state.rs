@@ -1,3 +1,4 @@
+use cw_utils::Expiration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +10,8 @@ use cw_storage_plus::{Item, Map};
 pub struct Config {
     pub owner: Addr,
     pub treasury: Addr,
-    pub team_commission: Decimal,
+    pub restake_commission: Decimal,
+    pub transfer_commission: Decimal,
     pub denom: String,
     pub unbonding_period: Timestamp,
 }
@@ -61,3 +63,4 @@ pub const LAST_PAYMENT_BLOCK: Item<u64> = Item::new("last_payment_block");
 pub const STAKE_DETAILS: Map<&Addr, StakeDetails> = Map::new("stake_details");
 pub const UNBONDING_CLAIMS: Map<&Addr, Vec<ClaimDetails>> = Map::new("unbonding_claims");
 pub const VALIDATOR_LIST: Map<String, Decimal> = Map::new("validator_list");
+pub const ALLOWED_ADDRESSES: Map<&Addr, Expiration> = Map::new("allowed_addresses");

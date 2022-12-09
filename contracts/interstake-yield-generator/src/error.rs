@@ -35,4 +35,10 @@ pub enum ContractError {
 
     #[error("Delegation not found")]
     DelegationNotFound {},
+
+    #[error("Expiration must be at least a month from now")]
+    ExpirationTooSoon {},
+
+    #[error("Allowed Address not found")]
+    AllowedAddressNotFound {},
 }

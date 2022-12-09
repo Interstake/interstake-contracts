@@ -31,7 +31,8 @@ pub fn migrate_config(
         let new_config = Config {
             owner: config.owner,
             treasury,
-            team_commission: config.team_commission,
+            restake_commission: config.team_commission,
+            transfer_commission: msg.transfer_commission,
             denom: config.denom,
             unbonding_period: Timestamp::from_seconds(3600 * 24 * 28), // default 28 days
         };
