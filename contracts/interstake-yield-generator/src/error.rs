@@ -44,4 +44,7 @@ pub enum ContractError {
 
     #[error("Allowance of Commission Address {address} is expired")]
     CommissionAddressExpired { address: String },
+
+    #[error("Commission address may not be the same as the recipient")]
+    CommissionAddressSameAsRecipient {},
 }

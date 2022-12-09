@@ -489,6 +489,10 @@ mod execute {
             // split the commission 50/50 between the commission address and the treasury
             if let Some(commission_address) = commission_address.clone() {
                 let commission_address = deps.api.addr_validate(&commission_address)?;
+                if recipient == commission_address {
+                    return Err(ContractError::CommissionAddressSameAsRecipient {});
+                }
+
                 let expiration = ALLOWED_ADDRESSES.may_load(deps.storage, &commission_address)?;
 
                 // check if the commission address is allowed
