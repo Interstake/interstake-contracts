@@ -72,7 +72,7 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_team_commission(mut self, commission: Decimal) -> Self {
+    pub fn with_restake_commission(mut self, commission: Decimal) -> Self {
         self.restake_commission = commission;
         self
     }
@@ -296,6 +296,7 @@ impl Suite {
         sender: &str,
         recipient: &str,
         amount: Uint128,
+        commission_address: Option<String>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -303,6 +304,7 @@ impl Suite {
             &ExecuteMsg::Transfer {
                 recipient: recipient.into(),
                 amount,
+                commission_address,
             },
             &[],
         )

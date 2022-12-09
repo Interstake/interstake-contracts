@@ -483,15 +483,31 @@ mod execute {
         let amount = if config.transfer_commission == Decimal::zero() {
             amount
         } else {
-            commission_amount = config.transfer_commission * amount;
-            treasury_amount = commission_amount.clone(); // divide by 2 here
+            let total_commission = config.transfer_commission * amount;
+            treasury_amount = total_commission.clone();
 
             // split the commission 50/50 between the commission address and the treasury
             if let Some(commission_address) = commission_address.clone() {
-                treasury_amount = commission_amount.checked_div(2u128.into()).unwrap(); // divide by 2 here
-                commission_amount = commission_amount.checked_sub(treasury_amount).unwrap(); // divide by 2 here
-
                 let commission_address = deps.api.addr_validate(&commission_address)?;
+                let expiration = ALLOWED_ADDRESSES.may_load(deps.storage, &commission_address)?;
+
+                // check if the commission address is allowed
+                if let Some(expiration) = expiration {
+                    if expiration.is_expired(&env.block) {
+                        return Err(ContractError::CommissionAddressExpired {
+                            address: commission_address.to_string(),
+                        });
+                    }
+                } else {
+                    return Err(ContractError::CommissionAddressNotFound {
+                        address: commission_address.to_string(),
+                    });
+                }
+
+                treasury_amount = treasury_amount.checked_div(2u128.into()).unwrap(); // divide by 2 here
+                commission_amount = total_commission.checked_sub(treasury_amount).unwrap();
+
+                // add the commission to the commission address
                 STAKE_DETAILS.update(
                     deps.storage,
                     &commission_address,
@@ -502,11 +518,13 @@ mod execute {
                             env.block.height,
                         );
                         stake_details.total.amount =
-                            stake_details.total.amount.checked_add(commission_amount)?; // divide by 2 here
+                            stake_details.total.amount.checked_add(commission_amount)?;
                         Ok(stake_details)
                     },
                 )?;
             }
+
+            // add the treasury commission to the treasury
             STAKE_DETAILS.update(
                 deps.storage,
                 &config.treasury,
@@ -519,9 +537,10 @@ mod execute {
                 },
             )?;
 
-            amount - commission_amount
+            amount - total_commission
         };
 
+        // add the amount to the recipient
         STAKE_DETAILS.update(deps.storage, &recipient, |stake_details| -> StdResult<_> {
             let mut stake_details =
                 unwrap_stake_details(stake_details, config.denom.clone(), env.block.height);
@@ -687,7 +706,9 @@ mod execute {
             .may_load(deps.storage, &address)?
             .is_some()
         {
-            return Err(ContractError::AllowedAddressNotFound {});
+            return Err(ContractError::CommissionAddressNotFound {
+                address: address.to_string(),
+            });
         }
 
         ALLOWED_ADDRESSES.remove(deps.storage, &address);

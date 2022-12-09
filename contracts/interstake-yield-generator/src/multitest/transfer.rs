@@ -7,6 +7,7 @@ use crate::{
     msg::{DelegateResponse, TotalDelegatedResponse},
     multitest::suite::{validator_list, TWENTY_EIGHT_DAYS},
     state::Config,
+    ContractError,
 };
 use test_case::test_case;
 
@@ -46,7 +47,7 @@ fn delegate_and_transfer(i: u32) {
     suite.restake(suite.owner().as_str()).unwrap();
 
     suite
-        .transfer(user1.0, user2, Uint128::new(30_000_000u128))
+        .transfer(user1.0, user2, Uint128::new(30_000_000u128), None)
         .unwrap();
     assert_eq!(
         suite.query_delegated(user1.0).unwrap(),
@@ -78,7 +79,7 @@ fn transfer_with_commission() {
     let user2 = "user2";
     let mut suite = SuiteBuilder::new()
         .with_funds(user1.0, &coins(user1.1, "ujuno"))
-        .with_team_commission(Decimal::percent(10))
+        .with_restake_commission(Decimal::percent(10))
         .build();
 
     let config: Config = suite.query_config().unwrap();
@@ -104,7 +105,7 @@ fn transfer_with_commission() {
     suite.restake(suite.owner().as_str()).unwrap();
 
     suite
-        .transfer(user1.0, user2, Uint128::new(30_000_000u128))
+        .transfer(user1.0, user2, Uint128::new(30_000_000u128), None)
         .unwrap();
     assert_eq!(
         suite.query_delegated(user1.0).unwrap(),
@@ -146,11 +147,32 @@ fn transfer_with_allowed_address() {
     let allowed2 = "allowed_address2";
     let mut suite = SuiteBuilder::new()
         .with_funds(user1.0, &coins(user1.1, "ujuno"))
-        .with_team_commission(Decimal::percent(10))
+        .with_restake_commission(Decimal::percent(10))
         .build();
 
     let config: Config = suite.query_config().unwrap();
     assert_eq!(config.restake_commission, Decimal::percent(10));
+
+    suite.delegate(user1.0, coin(user1.1, "ujuno")).unwrap();
+    suite.advance_height(500);
+    suite.restake(suite.owner().as_str()).unwrap();
+
+    let err: ContractError = suite
+        .transfer(
+            user1.0,
+            allowed1,
+            Uint128::new(30_000_000u128),
+            Some(allowed1.to_string()),
+        )
+        .unwrap_err()
+        .downcast()
+        .unwrap();
+    assert_eq!(
+        err,
+        ContractError::CommissionAddressNotFound {
+            address: allowed1.to_string()
+        }
+    );
 
     suite
         .update_allowed_addr(suite.owner().as_str(), allowed1, None)
@@ -176,47 +198,47 @@ fn transfer_with_allowed_address() {
         )
         .unwrap_err();
 
-    // suite.advance_height(1);
-    // suite
-    //     .update_allowed_addr(
-    //         suite.owner().as_str(),
-    //         allowed2,
-    //         Some(
-    //             suite
-    //                 .app
-    //                 .block_info()
-    //                 .time
-    //                 .plus_seconds(TWENTY_EIGHT_DAYS + 1)
-    //                 .seconds(),
-    //         ),
-    //     )
-    //     .unwrap();
-
-    // let expiration2 = suite.query_allowed_addr(allowed2).unwrap();
-    // assert_eq!(
-    //     expiration2,
-    //     Expiration::AtTime(
-    //         suite
-    //             .app
-    //             .block_info()
-    //             .time
-    //             .plus_seconds(TWENTY_EIGHT_DAYS + 1)
-    //     )
-    // );
-
-    suite.delegate(user1.0, coin(user1.1, "ujuno")).unwrap();
-    suite.advance_height(500);
-    suite.restake(suite.owner().as_str()).unwrap();
+    suite
+        .update_allowed_addr(suite.owner().as_str(), allowed2, None)
+        .unwrap();
 
     suite
-        .transfer(user1.0, user2, 30_000_000u128.into())
+        .transfer(
+            user1.0,
+            user2,
+            30_000_000u128.into(),
+            Some(allowed1.to_string()),
+        )
         .unwrap();
 
     let user_1_delegated = suite.query_delegated(user1.0).unwrap();
     let user_2_delegated = suite.query_delegated(user2).unwrap();
     let treasury_delegated = suite.query_delegated(suite.treasury()).unwrap();
+    let allowed1_delegated = suite.query_delegated(allowed1).unwrap();
 
     assert_eq!(user_1_delegated.total_staked.u128(), 20_002_711u128);
     assert_eq!(user_2_delegated.total_staked.u128(), 27_000_000u128);
-    assert_eq!(treasury_delegated.total_staked.u128(), 3_000_000u128);
+    assert_eq!(treasury_delegated.total_staked.u128(), 1_500_000u128);
+    assert_eq!(allowed1_delegated.total_staked.u128(), 1_500_000u128);
+
+    suite
+        .remove_allowed_addr(suite.owner().as_str(), allowed2)
+        .unwrap();
+
+    let err: ContractError = suite
+        .transfer(
+            user2,
+            user1.0,
+            20_000_000u128.into(),
+            Some(allowed2.to_string()),
+        )
+        .unwrap_err()
+        .downcast()
+        .unwrap();
+    assert_eq!(
+        err,
+        ContractError::CommissionAddressNotFound {
+            address: allowed2.to_string()
+        }
+    );
 }
