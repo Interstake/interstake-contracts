@@ -125,7 +125,6 @@ pub fn execute(
 
 mod execute {
 
-    
     use cw_utils::Expiration;
 
     use crate::state::{ALLOWED_ADDRESSES, VALIDATOR_LIST};
