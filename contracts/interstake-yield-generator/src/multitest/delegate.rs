@@ -494,7 +494,7 @@ fn partial_user_become_full_after_restake(i: u32) {
     );
 
     assert_approx_eq!(
-        dbg!(suite.query_total_delegated().unwrap().amount.amount.u128()),
+        suite.query_total_delegated().unwrap().amount.amount.u128(),
         70_000_000_000u128 + reward1_amount.u128() + reward2_amount.u128(),
         "0.00000001"
     );
@@ -552,7 +552,7 @@ fn partial_user_become_full_after_restake(i: u32) {
     );
 
     assert_approx_eq!(
-        dbg!(suite.query_total_delegated().unwrap().amount.amount.u128()),
+        suite.query_total_delegated().unwrap().amount.amount.u128(),
         105_000_000_000u128 + reward1_amount.u128() + reward2_amount.u128() + reward3_amount.u128(),
         "0.00000001"
     );
