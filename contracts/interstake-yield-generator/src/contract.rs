@@ -9,6 +9,8 @@ use cw2::set_contract_version;
 use cw_utils::ensure_from_older_version;
 
 use crate::error::ContractError;
+
+use crate::migration::migrate_config;
 use crate::msg::{
     ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
     InstantiateMsg, LastPaymentBlockResponse, MigrateMsg, QueryMsg, RewardResponse,
@@ -24,6 +26,8 @@ use std::collections::HashMap;
 const CONTRACT_NAME: &str = "crates.io:interstake-yield-generator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+const MIN_EXPIRATION: u64 = 3600 * 24 * 28; // 28 days
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -34,6 +38,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let owner = deps.api.addr_validate(&msg.owner)?;
+    let treasury = deps.api.addr_validate(&msg.treasury)?;
 
     let unbonding_period = if let Some(unbonding_period) = msg.unbonding_period {
         Timestamp::from_seconds(unbonding_period)
@@ -43,7 +48,9 @@ pub fn instantiate(
 
     let config = Config {
         owner: owner.clone(),
-        team_commision: msg.team_commision,
+        treasury,
+        restake_commission: msg.restake_commission,
+        transfer_commission: msg.transfer_commission,
         denom: msg.denom.clone(),
         unbonding_period,
     };
@@ -53,7 +60,7 @@ pub fn instantiate(
         .add_attribute("action", "instantiate")
         .add_attribute("owner", owner.into_string())
         .add_attribute("staking_addr", &msg.staking_addr)
-        .add_attribute("team_commision", msg.team_commision.to_string());
+        .add_attribute("team_commission", msg.restake_commission.to_string());
 
     VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
 
@@ -74,9 +81,19 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig {
             owner,
-            team_commision,
+            treasury,
+            restake_commission,
+            transfer_commission,
             unbonding_period,
-        } => execute::update_config(deps, info, owner, team_commision, unbonding_period),
+        } => execute::update_config(
+            deps,
+            info,
+            owner,
+            treasury,
+            restake_commission,
+            transfer_commission,
+            unbonding_period,
+        ),
         ExecuteMsg::UpdateValidatorList { new_validator_list } => {
             execute::update_validator_list(deps, info, new_validator_list)
         }
@@ -84,16 +101,33 @@ pub fn execute(
         ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
         ExecuteMsg::Claim {} => execute::claim(deps, env, info),
         ExecuteMsg::Restake {} => execute::restake(deps, env),
-        ExecuteMsg::Transfer { recipient, amount } => {
-            execute::transfer(deps, env, info.sender, recipient, amount)
-        }
+        ExecuteMsg::Transfer {
+            recipient,
+            amount,
+            commission_address,
+        } => execute::transfer(
+            deps,
+            env,
+            info.sender,
+            recipient,
+            amount,
+            commission_address,
+        ),
         ExecuteMsg::UndelegateAll {} => execute::undelegate_all(deps, env, info),
+        ExecuteMsg::UpdateAllowedAddr { address, expires } => {
+            execute::update_allowed_address(deps, env, info, address, expires)
+        }
+        ExecuteMsg::RemoveAllowedAddr { address } => {
+            execute::remove_allowed_address(deps, info, address)
+        }
     }
 }
 
 mod execute {
 
-    use crate::state::VALIDATOR_LIST;
+    use cw_utils::Expiration;
+
+    use crate::state::{ALLOWED_ADDRESSES, VALIDATOR_LIST};
 
     use super::{
         utils::{
@@ -107,7 +141,9 @@ mod execute {
         deps: DepsMut,
         info: MessageInfo,
         new_owner: Option<String>,
-        new_team_commision: Option<Decimal>,
+        treasury: Option<String>,
+        new_restake_commission: Option<Decimal>,
+        new_transfer_commission: Option<Decimal>,
         new_unbonding_period: Option<u64>,
     ) -> Result<Response, ContractError> {
         let mut config = CONFIG.load(deps.storage)?;
@@ -120,8 +156,17 @@ mod execute {
             config.owner = owner;
         }
 
-        if let Some(team_commision) = new_team_commision {
-            config.team_commision = team_commision;
+        if let Some(treasury) = treasury {
+            let treasury = deps.api.addr_validate(&treasury)?;
+            config.treasury = treasury;
+        }
+
+        if let Some(restake_commission) = new_restake_commission {
+            config.restake_commission = restake_commission;
+        }
+
+        if let Some(transfer_commission) = new_transfer_commission {
+            config.transfer_commission = transfer_commission;
         }
 
         if let Some(unbonding_period) = new_unbonding_period {
@@ -328,19 +373,19 @@ mod execute {
         }
         let reward = reward[0].clone();
 
-        // Decrease reward of team_commision
-        let mut commision_msgs = vec![];
-        let reward = if config.team_commision == Decimal::zero() {
+        // Decrease reward of team_commission
+        let mut commission_msgs = vec![];
+        let reward = if config.restake_commission == Decimal::zero() {
             reward
         } else {
-            let commision_amount = config.team_commision * reward.amount;
+            let commission_amount = config.restake_commission * reward.amount;
 
-            commision_msgs.push(BankMsg::Send {
-                to_address: config.owner.to_string(),
-                amount: vec![coin(commision_amount.u128(), reward.denom.clone())],
+            commission_msgs.push(BankMsg::Send {
+                to_address: config.treasury.to_string(),
+                amount: vec![coin(commission_amount.u128(), reward.denom.clone())],
             });
 
-            coin((reward.amount - commision_amount).u128(), reward.denom)
+            coin((reward.amount - commission_amount).u128(), reward.denom)
         };
 
         let reward_msgs = distribute_msgs_for_validators(deps.as_ref())?;
@@ -410,28 +455,41 @@ mod execute {
             .add_attribute("action", "restake")
             .add_attribute("amount", reward.amount)
             .add_messages(reward_msgs)
-            .add_messages(commision_msgs)
+            .add_messages(commission_msgs)
             .add_messages(delegate_msgs))
     }
 
     pub fn transfer(
-        deps: DepsMut,
+        mut deps: DepsMut,
         env: Env,
         sender: Addr,
         recipient: String,
         amount: Uint128,
+        commission_address: Option<String>,
     ) -> Result<Response, ContractError> {
         let recipient = deps.api.addr_validate(&recipient)?;
-        let denom = CONFIG.load(deps.as_ref().storage)?.denom;
+        let config = CONFIG.load(deps.as_ref().storage)?;
 
         STAKE_DETAILS.update(deps.storage, &sender, |stake_details| -> StdResult<_> {
             let mut stake_details =
-                unwrap_stake_details(stake_details, denom.clone(), env.block.height);
+                unwrap_stake_details(stake_details, config.denom.clone(), env.block.height);
             stake_details.total.amount = stake_details.total.amount.checked_sub(amount)?;
             Ok(stake_details)
         })?;
+
+        let (amount, treasury_amount, commission_amount) = deduct_commission(
+            &config,
+            amount,
+            &commission_address,
+            &mut deps,
+            &recipient,
+            &env,
+        )?;
+
+        // add the amount to the recipient
         STAKE_DETAILS.update(deps.storage, &recipient, |stake_details| -> StdResult<_> {
-            let mut stake_details = unwrap_stake_details(stake_details, denom, env.block.height);
+            let mut stake_details =
+                unwrap_stake_details(stake_details, config.denom.clone(), env.block.height);
             stake_details.total.amount = stake_details.total.amount.checked_add(amount)?;
             Ok(stake_details)
         })?;
@@ -440,7 +498,90 @@ mod execute {
             .add_attribute("action", "transfer")
             .add_attribute("amount", amount)
             .add_attribute("sender", &sender)
-            .add_attribute("recipient", &recipient))
+            .add_attribute("recipient", &recipient)
+            .add_attribute("treasury_commission", treasury_amount)
+            .add_attribute("treasury_address", &config.treasury)
+            .add_attribute(
+                "commission_address",
+                commission_address.unwrap_or("empty".to_string()),
+            )
+            .add_attribute("commission_amount", commission_amount))
+    }
+
+    fn deduct_commission(
+        config: &Config,
+        amount: Uint128,
+        commission_address: &Option<String>,
+        deps: &mut DepsMut,
+        recipient: &Addr,
+        env: &Env,
+    ) -> Result<(Uint128, Uint128, Uint128), ContractError> {
+        let mut treasury_amount = Uint128::zero();
+        let mut commission_amount = Uint128::zero();
+
+        let amount = if config.transfer_commission == Decimal::zero() {
+            amount
+        } else {
+            let total_commission = config.transfer_commission * amount;
+            treasury_amount = total_commission.clone();
+
+            // split the commission 50/50 between the commission address and the treasury
+            if let Some(commission_address) = commission_address.clone() {
+                let commission_address = deps.api.addr_validate(&commission_address)?;
+                if *recipient == commission_address {
+                    return Err(ContractError::CommissionAddressSameAsRecipient {});
+                }
+
+                let expiration = ALLOWED_ADDRESSES.may_load(deps.storage, &commission_address)?;
+
+                // check if the commission address is allowed
+                if let Some(expiration) = expiration {
+                    if expiration.is_expired(&env.block) {
+                        return Err(ContractError::CommissionAddressExpired {
+                            address: commission_address.to_string(),
+                        });
+                    }
+                } else {
+                    return Err(ContractError::CommissionAddressNotFound {
+                        address: commission_address.to_string(),
+                    });
+                }
+
+                treasury_amount = treasury_amount.checked_div(2u128.into()).unwrap(); // divide by 2 here
+                commission_amount = total_commission.checked_sub(treasury_amount).unwrap();
+
+                // add the commission to the commission address
+                STAKE_DETAILS.update(
+                    deps.storage,
+                    &commission_address,
+                    |stake_details| -> StdResult<_> {
+                        let mut stake_details = unwrap_stake_details(
+                            stake_details,
+                            config.denom.clone(),
+                            env.block.height,
+                        );
+                        stake_details.total.amount =
+                            stake_details.total.amount.checked_add(commission_amount)?;
+                        Ok(stake_details)
+                    },
+                )?;
+            }
+
+            // add the treasury commission to the treasury
+            STAKE_DETAILS.update(
+                deps.storage,
+                &config.treasury,
+                |stake_details| -> StdResult<_> {
+                    let mut stake_details =
+                        unwrap_stake_details(stake_details, config.denom.clone(), env.block.height);
+                    stake_details.total.amount =
+                        stake_details.total.amount.checked_add(treasury_amount)?;
+                    Ok(stake_details)
+                },
+            )?;
+            amount - total_commission
+        };
+        Ok((amount, treasury_amount, commission_amount))
     }
 
     pub fn undelegate_all(
@@ -536,6 +677,64 @@ mod execute {
             .add_attribute("release_timestamp", release_timestamp.to_string())
             .add_messages(undelegate_msgs))
     }
+
+    /// updates the allowed address list with the given address and expiration
+    pub fn update_allowed_address(
+        deps: DepsMut,
+        env: Env,
+        info: MessageInfo,
+        address: String,
+        expiration: u64,
+    ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.as_ref().storage)?;
+        if config.owner != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+
+        let exp = Expiration::AtTime(Timestamp::from_seconds(expiration));
+
+        if exp < Expiration::AtTime(env.block.time.plus_seconds(MIN_EXPIRATION)) {
+            return Err(ContractError::ExpirationTooSoon {});
+        }
+
+        let address = deps.api.addr_validate(&address)?;
+
+        ALLOWED_ADDRESSES.update(deps.storage, &address, |_| -> StdResult<_> { Ok(exp) })?;
+
+        Ok(Response::new()
+            .add_attribute("action", "update_allowed_address")
+            .add_attribute("allowed_address", address)
+            .add_attribute("expiration", expiration.to_string()))
+    }
+
+    pub fn remove_allowed_address(
+        deps: DepsMut,
+        info: MessageInfo,
+        address: String,
+    ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.as_ref().storage)?;
+        if config.owner != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+
+        let address = deps.api.addr_validate(&address)?;
+
+        // checks if address is in the list, otherwise returns an error
+        if !ALLOWED_ADDRESSES
+            .may_load(deps.storage, &address)?
+            .is_some()
+        {
+            return Err(ContractError::CommissionAddressNotFound {
+                address: address.to_string(),
+            });
+        }
+
+        ALLOWED_ADDRESSES.remove(deps.storage, &address);
+
+        Ok(Response::new()
+            .add_attribute("action", "remove_allowed_address")
+            .add_attribute("allowed_address", address))
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -552,15 +751,21 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::LastPaymentBlock {} => to_binary(&query::last_payment_block(deps)?),
         QueryMsg::ValidatorWeight { validator } => to_binary(&query::validator(deps, validator)?),
         QueryMsg::ValidatorList {} => to_binary(&query::validator_list(deps)?),
+        QueryMsg::AllowedAddr { address } => to_binary(&query::allowed_addr(deps, address)?),
+        QueryMsg::AllowedAddrList {} => to_binary(&query::allowed_addr_list(deps)?),
     }
 }
 
 mod query {
     use crate::{
-        msg::{ValidatorWeightResponse, ValidatorsResponse},
-        state::VALIDATOR_LIST,
+        msg::{
+            AllowedAddrListResponse, AllowedAddrResponse, ValidatorWeightResponse,
+            ValidatorsResponse,
+        },
+        state::{ALLOWED_ADDRESSES, VALIDATOR_LIST},
     };
     use cosmwasm_std::Order::Ascending;
+    use cw_utils::Expiration;
 
     use super::*;
 
@@ -664,11 +869,28 @@ mod query {
         let weight = VALIDATOR_LIST.load(deps.storage, validator)?;
         Ok(ValidatorWeightResponse { weight })
     }
+
+    pub fn allowed_addr(deps: Deps, address: String) -> StdResult<AllowedAddrResponse> {
+        let address = deps.api.addr_validate(&address)?;
+
+        let expires = ALLOWED_ADDRESSES.load(deps.storage, &address)?;
+        Ok(AllowedAddrResponse { expires })
+    }
+
+    /// no max limit required as this list is not expected to exceed 20-30 items.
+    pub fn allowed_addr_list(deps: Deps) -> StdResult<AllowedAddrListResponse> {
+        let allowed_list = ALLOWED_ADDRESSES
+            .range(deps.storage, None, None, Ascending)
+            .collect::<StdResult<Vec<(Addr, Expiration)>>>()?;
+        Ok(AllowedAddrListResponse { allowed_list })
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let storage_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    migrate_config(deps, &storage_version, msg)?;
     Ok(Response::new())
 }
 

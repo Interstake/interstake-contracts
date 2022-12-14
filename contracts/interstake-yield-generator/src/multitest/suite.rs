@@ -1,4 +1,5 @@
 use anyhow::Result as AnyResult;
+use cw_utils::Expiration;
 use schemars::JsonSchema;
 use std::fmt;
 
@@ -11,9 +12,9 @@ use cw_multi_test::{
 };
 
 use crate::msg::{
-    ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse, ExecuteMsg,
-    InstantiateMsg, LastPaymentBlockResponse, QueryMsg, RewardResponse, TotalDelegatedResponse,
-    ValidatorsResponse,
+    AllowedAddrListResponse, AllowedAddrResponse, ClaimsResponse, ConfigResponse, DelegateResponse,
+    DelegatedResponse, ExecuteMsg, InstantiateMsg, LastPaymentBlockResponse, QueryMsg,
+    RewardResponse, TotalDelegatedResponse, ValidatorsResponse,
 };
 use crate::state::{ClaimDetails, Config};
 
@@ -34,7 +35,9 @@ where
 #[derive(Debug)]
 pub struct SuiteBuilder {
     pub owner: String,
-    pub team_commision: Decimal,
+    pub treasury: String,
+    pub restake_commission: Decimal,
+    pub transfer_commission: Decimal,
     pub validator_commission: Decimal,
     pub funds: Vec<(Addr, Vec<Coin>)>,
     pub denom: String,
@@ -47,8 +50,10 @@ impl SuiteBuilder {
     pub fn new() -> Self {
         Self {
             owner: "owner".to_owned(),
-            team_commision: Decimal::zero(),
+            restake_commission: Decimal::zero(),
+            transfer_commission: Decimal::zero(),
             validator_commission: Decimal::percent(5),
+            treasury: "treasury".to_owned(),
             funds: vec![],
             denom: "ujuno".to_owned(),
         }
@@ -67,9 +72,15 @@ impl SuiteBuilder {
         self
     }
 
+    pub fn with_restake_commission(mut self, commission: Decimal) -> Self {
+        self.restake_commission = commission;
+        self
+    }
+
     #[track_caller]
     pub fn build(self) -> Suite {
         let owner = Addr::unchecked(self.owner.clone());
+        let treasury = Addr::unchecked(self.treasury.clone());
         let funds = self.funds;
 
         let mut app: App = App::default();
@@ -125,8 +136,10 @@ impl SuiteBuilder {
                 owner.clone(),
                 &InstantiateMsg {
                     owner: self.owner.clone(),
+                    treasury: self.treasury.clone(),
                     staking_addr: VALIDATOR_1.to_owned(),
-                    team_commision: self.team_commision,
+                    restake_commission: self.restake_commission,
+                    transfer_commission: self.restake_commission,
                     denom: self.denom,
                     unbonding_period: Some(TWENTY_EIGHT_DAYS),
                 },
@@ -139,6 +152,7 @@ impl SuiteBuilder {
         Suite {
             app,
             owner,
+            treasury,
             contract: yield_generator_contract,
         }
     }
@@ -147,6 +161,7 @@ impl SuiteBuilder {
 pub struct Suite {
     pub app: App,
     owner: Addr,
+    treasury: Addr,
     contract: Addr,
 }
 
@@ -172,6 +187,10 @@ impl Suite {
         self.owner.clone()
     }
 
+    pub fn treasury(&self) -> Addr {
+        self.treasury.clone()
+    }
+
     pub fn advance_height(&mut self, blocks: u64) {
         self.app.update_block(|block: &mut BlockInfo| {
             block.time = block.time.plus_seconds(5 * blocks);
@@ -195,7 +214,9 @@ impl Suite {
         &mut self,
         sender: &str,
         owner: impl Into<Option<String>>,
-        team_commision: impl Into<Option<Decimal>>,
+        treasury: impl Into<Option<String>>,
+        restake_commission: impl Into<Option<Decimal>>,
+        transfer_commission: impl Into<Option<Decimal>>,
         unbonding_period: impl Into<Option<u64>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
@@ -203,7 +224,9 @@ impl Suite {
             self.contract.clone(),
             &ExecuteMsg::UpdateConfig {
                 owner: owner.into(),
-                team_commision: team_commision.into(),
+                treasury: treasury.into(),
+                restake_commission: restake_commission.into(),
+                transfer_commission: transfer_commission.into(),
                 unbonding_period: unbonding_period.into(),
             },
             &[],
@@ -273,6 +296,7 @@ impl Suite {
         sender: &str,
         recipient: &str,
         amount: Uint128,
+        commission_address: Option<String>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -280,6 +304,35 @@ impl Suite {
             &ExecuteMsg::Transfer {
                 recipient: recipient.into(),
                 amount,
+                commission_address,
+            },
+            &[],
+        )
+    }
+
+    pub fn update_allowed_addr(
+        &mut self,
+        sender: &str,
+        addr: &str,
+        expires: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::UpdateAllowedAddr {
+                address: addr.into(),
+                expires,
+            },
+            &[],
+        )
+    }
+
+    pub fn remove_allowed_addr(&mut self, sender: &str, addr: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::RemoveAllowedAddr {
+                address: addr.into(),
             },
             &[],
         )
@@ -352,5 +405,23 @@ impl Suite {
             }),
         )?;
         Ok(response.delegations)
+    }
+
+    pub fn query_allowed_addr(&self, address: &str) -> AnyResult<Expiration> {
+        let response: AllowedAddrResponse = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::AllowedAddr {
+                address: address.to_string(),
+            },
+        )?;
+        Ok(response.expires)
+    }
+
+    pub fn query_allowed_list(&self) -> AnyResult<Vec<(Addr, Expiration)>> {
+        let response: AllowedAddrListResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::AllowedAddrList {})?;
+        Ok(response.allowed_list)
     }
 }

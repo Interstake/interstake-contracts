@@ -35,4 +35,16 @@ pub enum ContractError {
 
     #[error("Delegation not found")]
     DelegationNotFound {},
+
+    #[error("Expiration must be at least a month from now")]
+    ExpirationTooSoon {},
+
+    #[error("Address {address} not found in allowed list of commissions")]
+    CommissionAddressNotFound { address: String },
+
+    #[error("Allowance of Commission Address {address} is expired")]
+    CommissionAddressExpired { address: String },
+
+    #[error("Commission address may not be the same as the recipient")]
+    CommissionAddressSameAsRecipient {},
 }
