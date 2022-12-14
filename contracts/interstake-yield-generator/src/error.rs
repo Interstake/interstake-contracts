@@ -39,7 +39,7 @@ pub enum ContractError {
     #[error("Expiration must be at least a month from now")]
     ExpirationTooSoon {},
 
-    #[error("Address {address} not found in allowd list of commissions")]
+    #[error("Address {address} not found in allowed list of commissions")]
     CommissionAddressNotFound { address: String },
 
     #[error("Allowance of Commission Address {address} is expired")]
