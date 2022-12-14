@@ -118,7 +118,7 @@ pub fn execute(
             execute::update_allowed_address(deps, env, info, address, expires)
         }
         ExecuteMsg::RemoveAllowedAddr { address } => {
-            execute::remove_allowed_address(deps, env, info, address)
+            execute::remove_allowed_address(deps, info, address)
         }
     }
 }
@@ -709,7 +709,6 @@ mod execute {
 
     pub fn remove_allowed_address(
         deps: DepsMut,
-        _env: Env,
         info: MessageInfo,
         address: String,
     ) -> Result<Response, ContractError> {
