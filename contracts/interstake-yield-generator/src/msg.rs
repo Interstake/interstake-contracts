@@ -56,7 +56,7 @@ pub enum ExecuteMsg {
     UpdateAllowedAddr {
         address: String,
         /// seconds since epoch
-        expires: Option<u64>,
+        expires: u64,
     },
     /// removes address from allowed list
     RemoveAllowedAddr { address: String },

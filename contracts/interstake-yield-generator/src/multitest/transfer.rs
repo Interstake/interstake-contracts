@@ -1,6 +1,6 @@
 use super::suite::SuiteBuilder;
 
-use cosmwasm_std::{coin, coins, Decimal, Uint128};
+use cosmwasm_std::{coin, coins, Decimal, Timestamp, Uint128};
 use cw_utils::Expiration;
 
 use crate::{
@@ -160,7 +160,7 @@ fn transfer_with_allowed_address() {
     let err: ContractError = suite
         .transfer(
             user1.0,
-            allowed1,
+            user2,
             Uint128::new(30_000_000u128),
             Some(allowed1.to_string()),
         )
@@ -175,31 +175,49 @@ fn transfer_with_allowed_address() {
     );
 
     suite
-        .update_allowed_addr(suite.owner().as_str(), allowed1, None)
+        .update_allowed_addr(
+            suite.owner().as_str(),
+            allowed1,
+            suite
+                .app
+                .block_info()
+                .time
+                .plus_seconds(TWENTY_EIGHT_DAYS + 1)
+                .seconds(),
+        )
         .unwrap();
 
     let expiration = suite.query_allowed_addr(allowed1).unwrap();
     assert_eq!(
         expiration,
-        Expiration::AtTime(suite.app.block_info().time.plus_seconds(TWENTY_EIGHT_DAYS))
+        Expiration::AtTime(Timestamp::from_seconds(
+            suite.app.block_info().time.seconds() + TWENTY_EIGHT_DAYS + 1
+        ))
     );
     suite
         .update_allowed_addr(
             suite.owner().as_str(),
             allowed2,
-            Some(
-                suite
-                    .app
-                    .block_info()
-                    .time
-                    .plus_seconds(TWENTY_EIGHT_DAYS - 1)
-                    .seconds(),
-            ),
+            suite
+                .app
+                .block_info()
+                .time
+                .plus_seconds(TWENTY_EIGHT_DAYS)
+                .seconds(),
         )
         .unwrap_err();
 
     suite
-        .update_allowed_addr(suite.owner().as_str(), allowed2, None)
+        .update_allowed_addr(
+            suite.owner().as_str(),
+            allowed2,
+            suite
+                .app
+                .block_info()
+                .time
+                .plus_seconds(TWENTY_EIGHT_DAYS + 1)
+                .seconds(),
+        )
         .unwrap();
 
     suite

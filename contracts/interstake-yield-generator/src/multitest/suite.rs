@@ -314,7 +314,7 @@ impl Suite {
         &mut self,
         sender: &str,
         addr: &str,
-        expires: Option<u64>,
+        expires: u64,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),

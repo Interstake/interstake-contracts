@@ -460,7 +460,7 @@ mod execute {
     }
 
     pub fn transfer(
-        deps: DepsMut,
+        mut deps: DepsMut,
         env: Env,
         sender: Addr,
         recipient: String,
@@ -477,8 +477,48 @@ mod execute {
             Ok(stake_details)
         })?;
 
+        let (amount, treasury_amount, commission_amount) = deduct_commission(
+            &config,
+            amount,
+            &commission_address,
+            &mut deps,
+            &recipient,
+            &env,
+        )?;
+
+        // add the amount to the recipient
+        STAKE_DETAILS.update(deps.storage, &recipient, |stake_details| -> StdResult<_> {
+            let mut stake_details =
+                unwrap_stake_details(stake_details, config.denom.clone(), env.block.height);
+            stake_details.total.amount = stake_details.total.amount.checked_add(amount)?;
+            Ok(stake_details)
+        })?;
+
+        Ok(Response::new()
+            .add_attribute("action", "transfer")
+            .add_attribute("amount", amount)
+            .add_attribute("sender", &sender)
+            .add_attribute("recipient", &recipient)
+            .add_attribute("treasury_commission", treasury_amount)
+            .add_attribute("treasury_address", &config.treasury)
+            .add_attribute(
+                "commission_address",
+                commission_address.unwrap_or("empty".to_string()),
+            )
+            .add_attribute("commission_amount", commission_amount))
+    }
+
+    fn deduct_commission(
+        config: &Config,
+        amount: Uint128,
+        commission_address: &Option<String>,
+        deps: &mut DepsMut,
+        recipient: &Addr,
+        env: &Env,
+    ) -> Result<(Uint128, Uint128, Uint128), ContractError> {
         let mut treasury_amount = Uint128::zero();
         let mut commission_amount = Uint128::zero();
+
         let amount = if config.transfer_commission == Decimal::zero() {
             amount
         } else {
@@ -488,7 +528,7 @@ mod execute {
             // split the commission 50/50 between the commission address and the treasury
             if let Some(commission_address) = commission_address.clone() {
                 let commission_address = deps.api.addr_validate(&commission_address)?;
-                if recipient == commission_address {
+                if *recipient == commission_address {
                     return Err(ContractError::CommissionAddressSameAsRecipient {});
                 }
 
@@ -539,27 +579,9 @@ mod execute {
                     Ok(stake_details)
                 },
             )?;
-
             amount - total_commission
         };
-
-        // add the amount to the recipient
-        STAKE_DETAILS.update(deps.storage, &recipient, |stake_details| -> StdResult<_> {
-            let mut stake_details =
-                unwrap_stake_details(stake_details, config.denom.clone(), env.block.height);
-            stake_details.total.amount = stake_details.total.amount.checked_add(amount)?;
-            Ok(stake_details)
-        })?;
-
-        Ok(Response::new()
-            .add_attribute("action", "transfer")
-            .add_attribute("amount", amount)
-            .add_attribute("sender", &sender)
-            .add_attribute("recipient", &recipient)
-            .add_attribute("treasury_commission", treasury_amount)
-            .add_attribute("treasury_address", &config.treasury)
-            .add_attribute("commission_address", commission_address.unwrap_or_default())
-            .add_attribute("commission_amount", commission_amount))
+        Ok((amount, treasury_amount, commission_amount))
     }
 
     pub fn undelegate_all(
@@ -662,28 +684,22 @@ mod execute {
         env: Env,
         info: MessageInfo,
         address: String,
-        expiration: Option<u64>,
+        expiration: u64,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.as_ref().storage)?;
         if config.owner != info.sender {
             return Err(ContractError::Unauthorized {});
         }
 
-        let expiration = if let Some(seconds_since_epoch) = expiration {
-            let exp = Expiration::AtTime(Timestamp::from_seconds(seconds_since_epoch));
-            if exp < Expiration::AtTime(env.block.time.plus_seconds(MIN_EXPIRATION)) {
-                return Err(ContractError::ExpirationTooSoon {});
-            }
-            exp
-        } else {
-            Expiration::AtTime(env.block.time.plus_seconds(MIN_EXPIRATION))
-        };
+        let exp = Expiration::AtTime(Timestamp::from_seconds(expiration));
+
+        if exp < Expiration::AtTime(env.block.time.plus_seconds(MIN_EXPIRATION)) {
+            return Err(ContractError::ExpirationTooSoon {});
+        }
 
         let address = deps.api.addr_validate(&address)?;
 
-        ALLOWED_ADDRESSES.update(deps.storage, &address, |_| -> StdResult<_> {
-            Ok(expiration)
-        })?;
+        ALLOWED_ADDRESSES.update(deps.storage, &address, |_| -> StdResult<_> { Ok(exp) })?;
 
         Ok(Response::new()
             .add_attribute("action", "update_allowed_address")
