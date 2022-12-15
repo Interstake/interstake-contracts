@@ -12,9 +12,9 @@ use cw_multi_test::{
 };
 
 use crate::msg::{
-    AllowedAddrListResponse, AllowedAddrResponse, ClaimsResponse, ConfigResponse, DelegateResponse,
-    DelegatedResponse, ExecuteMsg, InstantiateMsg, LastPaymentBlockResponse, QueryMsg,
-    RewardResponse, TotalDelegatedResponse, ValidatorsResponse,
+    AllowedAddrResponse, ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse,
+    ExecuteMsg, InstantiateMsg, LastPaymentBlockResponse, QueryMsg, RewardResponse,
+    TotalDelegatedResponse, ValidatorsResponse,
 };
 use crate::state::{ClaimDetails, Config};
 
@@ -415,13 +415,5 @@ impl Suite {
             },
         )?;
         Ok(response.expires)
-    }
-
-    pub fn query_allowed_list(&self) -> AnyResult<Vec<(Addr, Expiration)>> {
-        let response: AllowedAddrListResponse = self
-            .app
-            .wrap()
-            .query_wasm_smart(self.contract.clone(), &QueryMsg::AllowedAddrList {})?;
-        Ok(response.allowed_list)
     }
 }
