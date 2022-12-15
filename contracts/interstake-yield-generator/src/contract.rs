@@ -503,7 +503,7 @@ mod execute {
             .add_attribute("treasury_address", &config.treasury)
             .add_attribute(
                 "commission_address",
-                commission_address.unwrap_or("empty".to_string()),
+                commission_address.unwrap_or_else(|| "empty".to_string()),
             )
             .add_attribute("commission_amount", commission_amount))
     }
@@ -523,7 +523,7 @@ mod execute {
             amount
         } else {
             let total_commission = config.transfer_commission * amount;
-            treasury_amount = total_commission.clone();
+            treasury_amount = total_commission;
 
             // split the commission 50/50 between the commission address and the treasury
             if let Some(commission_address) = commission_address.clone() {
@@ -720,9 +720,9 @@ mod execute {
         let address = deps.api.addr_validate(&address)?;
 
         // checks if address is in the list, otherwise returns an error
-        if !ALLOWED_ADDRESSES
+        if ALLOWED_ADDRESSES
             .may_load(deps.storage, &address)?
-            .is_some()
+            .is_none()
         {
             return Err(ContractError::CommissionAddressNotFound {
                 address: address.to_string(),
