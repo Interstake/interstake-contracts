@@ -32,3 +32,4 @@ thiserror = "1"
 anyhow = "1"
 cw-multi-test = "0.16"
 test-case = "2.2"
+interstake-yield-generator = { git = "https://github.com/Interstake/interstake-contracts", tag = "v0.2.0" }
