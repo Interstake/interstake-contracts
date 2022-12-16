@@ -1,7 +1,9 @@
 use anyhow::Result as AnyResult;
 use cw_utils::Expiration;
-use interstake_yield_generator::contract as yield_generator_v02;
-use interstake_yield_generator::msg as msg_v02;
+use interstake_yield_generator_v02::contract as yield_generator_v02;
+use interstake_yield_generator_v02::msg as msg_v02;
+use interstake_yield_generator_v03::contract as yield_generator_v03;
+use interstake_yield_generator_v03::msg as msg_v03;
 use schemars::JsonSchema;
 use std::fmt;
 use std::str::FromStr;
@@ -34,6 +36,19 @@ where
         crate::contract::query,
     );
     let contract = contract.with_migrate_empty(crate::contract::migrate);
+    Box::new(contract)
+}
+
+pub fn contract_yield_generator_v03<C>() -> Box<dyn Contract<C>>
+where
+    C: Clone + fmt::Debug + PartialEq + JsonSchema + 'static,
+{
+    let contract = ContractWrapper::new_with_empty(
+        yield_generator_v03::execute,
+        yield_generator_v03::instantiate,
+        yield_generator_v03::query,
+    );
+    let contract = contract.with_migrate_empty(yield_generator_v03::migrate);
     Box::new(contract)
 }
 
@@ -166,16 +181,16 @@ impl SuiteBuilder {
             )
             .unwrap();
 
-        let prev_yield_generator_id = app.store_code(contract_yield_generator_v02());
-        let prev_yield_generator_contract = app
+        let yield_generator_v02_id = app.store_code(contract_yield_generator_v02());
+        let yield_generator_v02_contract = app
             .instantiate_contract(
-                prev_yield_generator_id,
+                yield_generator_v02_id,
                 owner.clone(),
                 &msg_v02::InstantiateMsg {
                     owner: self.owner.clone(),
                     staking_addr: VALIDATOR_1.to_owned(),
                     team_commision: Some(self.restake_commission),
-                    denom: self.denom,
+                    denom: self.denom.clone(),
                     unbonding_period: Some(TWENTY_EIGHT_DAYS),
                 },
                 &[],
@@ -184,13 +199,35 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        let yield_generator_v03_id = app.store_code(contract_yield_generator_v03());
+        let yield_generator_v03_contract = app
+            .instantiate_contract(
+                yield_generator_v03_id,
+                owner.clone(),
+                &msg_v03::InstantiateMsg {
+                    owner: self.owner.clone(),
+                    staking_addr: VALIDATOR_1.to_owned(),
+                    denom: self.denom,
+                    unbonding_period: Some(TWENTY_EIGHT_DAYS),
+                    treasury: self.treasury.to_string(),
+                    restake_commission: self.restake_commission,
+                    transfer_commission: self.transfer_commission,
+                },
+                &[],
+                "yield_generator_v03",
+                Some(owner.clone().to_string()),
+            )
+            .unwrap();
         Suite {
             app,
             owner,
             treasury,
             contract: yield_generator_contract,
-            prev_contract: prev_yield_generator_contract,
             contract_code_id: yield_generator_id,
+            contract_v02: yield_generator_v02_contract,
+            contract_v03: yield_generator_v03_contract,
+            contract_v02_code_id: yield_generator_v02_id,
+            contract_v03_code_id: yield_generator_v03_id,
         }
     }
 }
@@ -200,8 +237,11 @@ pub struct Suite {
     owner: Addr,
     treasury: Addr,
     contract: Addr,
-    prev_contract: Addr,
     contract_code_id: u64,
+    contract_v02: Addr,
+    contract_v03: Addr,
+    contract_v02_code_id: u64,
+    contract_v03_code_id: u64,
 }
 
 pub fn validator_list(i: u32) -> Vec<(String, Decimal)> {
@@ -462,10 +502,10 @@ impl Suite {
         treasury: &str,
         transfer_commission: String,
     ) -> AnyResult<AppResponse> {
-        self.contract = self.prev_contract.clone();
+        self.contract = self.contract_v02.clone();
         self.app.migrate_contract(
             Addr::unchecked(sender),
-            self.prev_contract.clone(),
+            self.contract_v02.clone(),
             &MigrateMsg {
                 treasury: treasury.to_string(),
                 transfer_commission: Decimal::from_str(&transfer_commission).unwrap(),
