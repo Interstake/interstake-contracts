@@ -5,6 +5,7 @@ use interstake_yield_generator_v02::msg as msg_v02;
 use interstake_yield_generator_v03::contract as yield_generator_v03;
 use interstake_yield_generator_v03::msg as msg_v03;
 use schemars::JsonSchema;
+use std::any::Any;
 use std::fmt;
 use std::str::FromStr;
 
@@ -501,15 +502,13 @@ impl Suite {
         sender: &str,
         treasury: &str,
         transfer_commission: String,
+        migrate_reference: String,
     ) -> AnyResult<AppResponse> {
         self.contract = self.contract_v02.clone();
         self.app.migrate_contract(
             Addr::unchecked(sender),
             self.contract_v02.clone(),
-            &MigrateMsg {
-                treasury: treasury.to_string(),
-                transfer_commission: Decimal::from_str(&transfer_commission).unwrap(),
-            },
+            migrate_reference,
             self.contract_code_id,
         )
     }

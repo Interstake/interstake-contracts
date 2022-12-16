@@ -7,7 +7,7 @@ use cw_storage_plus::Item;
 
 use crate::error::ContractError;
 use crate::msg::MigrateMsg;
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, CONFIG, VALIDATOR_LIST};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -24,18 +24,27 @@ pub fn migrate_config(
     msg: MigrateMsg,
 ) -> Result<(), ContractError> {
     if *version < "0.1.4".parse::<Version>().unwrap() {
-        let old_storage: Item<ConfigV0_1_5> = Item::new("config");
-        let config = old_storage.load(deps.storage)?;
+        // let old_storage: Item<ConfigV0_1_5> = Item::new("config");
 
-        let treasury = deps.api.addr_validate(msg.treasury.as_str())?;
-        let new_config = Config {
-            owner: config.owner,
-            treasury,
-            restake_commission: config.team_commission,
-            transfer_commission: msg.transfer_commission,
-            denom: config.denom,
-            unbonding_period: Timestamp::from_seconds(3600 * 24 * 28), // default 28 days
+        let owner = deps.api.addr_validate(&msg.owner)?;
+        let treasury = deps.api.addr_validate(&msg.treasury)?;
+
+        let unbonding_period = if let Some(unbonding_period) = msg.unbonding_period {
+            Timestamp::from_seconds(unbonding_period)
+        } else {
+            Timestamp::from_seconds(3600 * 24 * 28) // Default: 28 days
         };
+
+        let new_config = Config {
+            owner: owner.clone(),
+            treasury,
+            restake_commission: msg.restake_commission,
+            transfer_commission: msg.transfer_commission,
+            denom: msg.denom.clone(),
+            unbonding_period,
+        };
+
+        VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
         CONFIG.save(deps.storage, &new_config)?
     }
     Ok(())

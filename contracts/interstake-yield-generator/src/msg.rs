@@ -97,8 +97,20 @@ pub enum QueryMsg {
 
 #[cw_serde]
 pub struct MigrateMsg {
+    /// Multisig contract that is allowed to perform admin operations
+    pub owner: String,
+    /// account which receives commissions
     pub treasury: String,
+    /// Address of validator
+    pub staking_addr: String,
+    /// Commission for restaking
+    pub restake_commission: Decimal,
+    /// Commission for transfers
     pub transfer_commission: Decimal,
+    /// Used denom
+    pub denom: String,
+    /// Unbondig period in seconds. Default: 2_419_200 (28 days)
+    pub unbonding_period: Option<u64>,
 }
 
 #[cw_serde]
