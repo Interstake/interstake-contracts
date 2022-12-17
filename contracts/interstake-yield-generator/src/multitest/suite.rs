@@ -1,6 +1,12 @@
 use anyhow::Result as AnyResult;
 use cw_utils::Expiration;
+use interstake_yield_generator_v02::contract as yield_generator_v02;
+use interstake_yield_generator_v02::msg as msg_v02;
+use interstake_yield_generator_v03::contract as yield_generator_v03;
+use interstake_yield_generator_v03::msg as msg_v03;
 use schemars::JsonSchema;
+use serde::Serialize;
+
 use std::fmt;
 
 use cosmwasm_std::{
@@ -28,6 +34,32 @@ where
         crate::contract::execute,
         crate::contract::instantiate,
         crate::contract::query,
+    );
+    let contract = contract.with_migrate_empty(crate::contract::migrate);
+    Box::new(contract)
+}
+
+pub fn contract_yield_generator_v03<C>() -> Box<dyn Contract<C>>
+where
+    C: Clone + fmt::Debug + PartialEq + JsonSchema + 'static,
+{
+    let contract = ContractWrapper::new_with_empty(
+        yield_generator_v03::execute,
+        yield_generator_v03::instantiate,
+        yield_generator_v03::query,
+    );
+    let contract = contract.with_migrate_empty(yield_generator_v03::migrate);
+    Box::new(contract)
+}
+
+pub fn contract_yield_generator_v02<C>() -> Box<dyn Contract<C>>
+where
+    C: Clone + fmt::Debug + PartialEq + JsonSchema + 'static,
+{
+    let contract = ContractWrapper::new_with_empty(
+        yield_generator_v02::execute,
+        yield_generator_v02::instantiate,
+        yield_generator_v02::query,
     );
     Box::new(contract)
 }
@@ -140,7 +172,7 @@ impl SuiteBuilder {
                     staking_addr: VALIDATOR_1.to_owned(),
                     restake_commission: self.restake_commission,
                     transfer_commission: self.restake_commission,
-                    denom: self.denom,
+                    denom: self.denom.clone(),
                     unbonding_period: Some(TWENTY_EIGHT_DAYS),
                 },
                 &[],
@@ -149,11 +181,53 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        let yield_generator_v02_id = app.store_code(contract_yield_generator_v02());
+        let yield_generator_v02_contract = app
+            .instantiate_contract(
+                yield_generator_v02_id,
+                owner.clone(),
+                &msg_v02::InstantiateMsg {
+                    owner: self.owner.clone(),
+                    staking_addr: VALIDATOR_1.to_owned(),
+                    team_commision: Some(self.restake_commission),
+                    denom: self.denom.clone(),
+                    unbonding_period: Some(TWENTY_EIGHT_DAYS),
+                },
+                &[],
+                "yield_generator_v02",
+                Some(owner.to_string()),
+            )
+            .unwrap();
+
+        let yield_generator_v03_id = app.store_code(contract_yield_generator_v03());
+        let yield_generator_v03_contract = app
+            .instantiate_contract(
+                yield_generator_v03_id,
+                owner.clone(),
+                &msg_v03::InstantiateMsg {
+                    owner: self.owner.clone(),
+                    staking_addr: VALIDATOR_1.to_owned(),
+                    denom: self.denom,
+                    unbonding_period: Some(TWENTY_EIGHT_DAYS),
+                    treasury: self.treasury.to_string(),
+                    restake_commission: self.restake_commission,
+                    transfer_commission: self.transfer_commission,
+                },
+                &[],
+                "yield_generator_v03",
+                Some(owner.to_string()),
+            )
+            .unwrap();
         Suite {
             app,
             owner,
             treasury,
             contract: yield_generator_contract,
+            contract_code_id: yield_generator_id,
+            contract_v02: yield_generator_v02_contract,
+            contract_v03: yield_generator_v03_contract,
+            contract_v02_code_id: yield_generator_v02_id,
+            contract_v03_code_id: yield_generator_v03_id,
         }
     }
 }
@@ -162,7 +236,12 @@ pub struct Suite {
     pub app: App,
     owner: Addr,
     treasury: Addr,
-    contract: Addr,
+    pub contract: Addr,
+    pub contract_code_id: u64,
+    pub contract_v02: Addr,
+    pub contract_v03: Addr,
+    pub contract_v02_code_id: u64,
+    pub contract_v03_code_id: u64,
 }
 
 pub fn validator_list(i: u32) -> Vec<(String, Decimal)> {
@@ -415,5 +494,25 @@ impl Suite {
             },
         )?;
         Ok(response.expires)
+    }
+
+    pub fn migrate<T: Serialize>(
+        &mut self,
+        sender: &str,
+        contract: Addr,
+        code_id: u64,
+        msg: &T,
+    ) -> AnyResult<AppResponse> {
+        self.contract = self.contract_v02.clone();
+        self.app
+            .migrate_contract(Addr::unchecked(sender), contract, msg, code_id)
+    }
+
+    pub fn query_contract_config(&self, contract: Addr) -> AnyResult<Config> {
+        let response: ConfigResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(contract, &QueryMsg::Config {})?;
+        Ok(response.config)
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "interstake-yield-generator"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 authors = [
     "Jakub Bogucki <software-solutions@tuta.io>",
@@ -32,3 +32,5 @@ thiserror = "1"
 anyhow = "1"
 cw-multi-test = "0.16"
 test-case = "2.2"
+interstake-yield-generator-v02 = { package = "interstake-yield-generator", git = "https://github.com/Interstake/interstake-contracts", tag = "v0.2.0" }
+interstake-yield-generator-v03 = { package = "interstake-yield-generator", git = "https://github.com/Interstake/interstake-contracts", tag = "v0.3.0" }
