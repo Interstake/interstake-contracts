@@ -9,6 +9,8 @@ use super::suite::{SuiteBuilder, VALIDATOR_1};
 
 #[test]
 fn recently_failed_migration() {
+    /// This test is a reproduction of a bug that happened on mainnet and
+    /// it includes a potential fix, which includes overwriting the config completely.
     let mut suite = SuiteBuilder::new().build();
     let owner = suite.owner();
 
@@ -16,7 +18,7 @@ fn recently_failed_migration() {
     let transfer_commission = Decimal::from_str("0.002").unwrap();
     let restake_commission = Decimal::from_str("0.01").unwrap();
 
-    // First we migrate to v03.
+    // (1) First we migrate to v03. this is what happened on mainnet.
     let _res = suite
         .migrate(
             suite.owner().as_str(),
@@ -33,7 +35,7 @@ fn recently_failed_migration() {
     // Migration is succesful, but querying the config fails (on mainnet).
     let err = suite.query_config().unwrap_err();
 
-    // Now er try to re-migrate, from V0.03 to the new version( probably v0.3.1).
+    // (2) Now er try to re-migrate, from V0.03 to the new version( probably v0.3.1).
     let _res = suite.migrate(
         suite.owner().as_str(),
         suite.contract_code_id,
