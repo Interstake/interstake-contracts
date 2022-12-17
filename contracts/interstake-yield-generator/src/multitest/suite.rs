@@ -5,6 +5,7 @@ use interstake_yield_generator_v02::msg as msg_v02;
 use interstake_yield_generator_v03::contract as yield_generator_v03;
 use interstake_yield_generator_v03::msg as msg_v03;
 use schemars::JsonSchema;
+use serde::Serialize;
 use std::any::Any;
 use std::fmt;
 use std::str::FromStr;
@@ -238,11 +239,11 @@ pub struct Suite {
     owner: Addr,
     treasury: Addr,
     contract: Addr,
-    contract_code_id: u64,
+    pub contract_code_id: u64,
     contract_v02: Addr,
     contract_v03: Addr,
-    contract_v02_code_id: u64,
-    contract_v03_code_id: u64,
+    pub contract_v02_code_id: u64,
+    pub contract_v03_code_id: u64,
 }
 
 pub fn validator_list(i: u32) -> Vec<(String, Decimal)> {
@@ -497,19 +498,20 @@ impl Suite {
         Ok(response.expires)
     }
 
-    pub fn migrate(
+    pub fn migrate<T: Serialize>(
         &mut self,
         sender: &str,
+        code_id: u64,
         treasury: &str,
         transfer_commission: String,
-        migrate_reference: String,
+        msg: &T,
     ) -> AnyResult<AppResponse> {
         self.contract = self.contract_v02.clone();
         self.app.migrate_contract(
             Addr::unchecked(sender),
             self.contract_v02.clone(),
-            migrate_reference,
-            self.contract_code_id,
+            msg,
+            code_id,
         )
     }
 }
