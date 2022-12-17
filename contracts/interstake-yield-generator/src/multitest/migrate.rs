@@ -54,7 +54,7 @@ fn recently_failed_migration() {
 
     // the config should now be correct.
     // but the config somehow is still broken.
-    suite.query_config().unwrap_err();
+    suite.query_config().unwrap();
 
     // (3) Now er try to re-migrate, from latest version CONTAINING proper
     // migration mechanism to the new version

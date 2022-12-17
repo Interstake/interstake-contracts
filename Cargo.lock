@@ -556,28 +556,6 @@ dependencies = [
 [[package]]
 name = "interstake-yield-generator"
 version = "0.3.0"
-dependencies = [
- "anyhow",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 1.0.1",
- "cw-utils 1.0.1",
- "cw2 1.0.0",
- "cw20-base 1.0.0",
- "interstake-yield-generator 0.2.0",
- "interstake-yield-generator 0.3.0 (git+https://github.com/Interstake/interstake-contracts?tag=v0.3.0)",
- "schemars",
- "semver",
- "serde",
- "test-case",
- "thiserror",
-]
-
-[[package]]
-name = "interstake-yield-generator"
-version = "0.3.0"
 source = "git+https://github.com/Interstake/interstake-contracts?tag=v0.3.0#8f5e9ea4d50aa408dca182387d549f22664bc80c"
 dependencies = [
  "cosmwasm-schema",
@@ -590,6 +568,28 @@ dependencies = [
  "schemars",
  "semver",
  "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "interstake-yield-generator"
+version = "0.4.0"
+dependencies = [
+ "anyhow",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.0.1",
+ "cw-utils 1.0.1",
+ "cw2 1.0.0",
+ "cw20-base 1.0.0",
+ "interstake-yield-generator 0.2.0",
+ "interstake-yield-generator 0.3.0",
+ "schemars",
+ "semver",
+ "serde",
+ "test-case",
  "thiserror",
 ]
 
