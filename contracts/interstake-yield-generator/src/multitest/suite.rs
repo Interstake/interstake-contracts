@@ -6,9 +6,8 @@ use interstake_yield_generator_v03::contract as yield_generator_v03;
 use interstake_yield_generator_v03::msg as msg_v03;
 use schemars::JsonSchema;
 use serde::Serialize;
-use std::any::Any;
+
 use std::fmt;
-use std::str::FromStr;
 
 use cosmwasm_std::{
     Addr, AllDelegationsResponse, BlockInfo, Coin, Decimal, Delegation, StakingQuery, Uint128,
@@ -18,7 +17,6 @@ use cw_multi_test::{
     App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, StakingSudo, SudoMsg,
 };
 
-use crate::msg::MigrateMsg;
 use crate::msg::{
     AllowedAddrResponse, ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse,
     ExecuteMsg, InstantiateMsg, LastPaymentBlockResponse, QueryMsg, RewardResponse,
@@ -197,7 +195,7 @@ impl SuiteBuilder {
                 },
                 &[],
                 "yield_generator_v02",
-                Some(owner.clone().to_string()),
+                Some(owner.to_string()),
             )
             .unwrap();
 
@@ -217,7 +215,7 @@ impl SuiteBuilder {
                 },
                 &[],
                 "yield_generator_v03",
-                Some(owner.clone().to_string()),
+                Some(owner.to_string()),
             )
             .unwrap();
         Suite {
@@ -508,5 +506,13 @@ impl Suite {
         self.contract = self.contract_v02.clone();
         self.app
             .migrate_contract(Addr::unchecked(sender), contract, msg, code_id)
+    }
+
+    pub fn query_contract_config(&self, contract: Addr) -> AnyResult<Config> {
+        let response: ConfigResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(contract, &QueryMsg::Config {})?;
+        Ok(response.config)
     }
 }

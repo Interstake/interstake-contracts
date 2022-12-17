@@ -3,7 +3,6 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Decimal, DepsMut, Timestamp};
-use cw_storage_plus::Item;
 
 use crate::error::ContractError;
 use crate::msg::MigrateMsg;
@@ -20,32 +19,28 @@ pub struct ConfigV0_1_5 {
 
 pub fn migrate_config(
     deps: DepsMut,
-    version: &Version,
+    _version: &Version,
     msg: MigrateMsg,
 ) -> Result<(), ContractError> {
-    //if *version < "0.3.0".parse::<Version>().unwrap() {
-        // let old_storage: Item<ConfigV0_1_5> = Item::new("config");
+    let owner = deps.api.addr_validate(&msg.owner)?;
+    let treasury = deps.api.addr_validate(&msg.treasury)?;
 
-        let owner = deps.api.addr_validate(&msg.owner)?;
-        let treasury = deps.api.addr_validate(&msg.treasury)?;
+    let unbonding_period = if let Some(unbonding_period) = msg.unbonding_period {
+        Timestamp::from_seconds(unbonding_period)
+    } else {
+        Timestamp::from_seconds(3600 * 24 * 28) // Default: 28 days
+    };
 
-        let unbonding_period = if let Some(unbonding_period) = msg.unbonding_period {
-            Timestamp::from_seconds(unbonding_period)
-        } else {
-            Timestamp::from_seconds(3600 * 24 * 28) // Default: 28 days
-        };
+    let new_config = Config {
+        owner,
+        treasury,
+        restake_commission: msg.restake_commission,
+        transfer_commission: msg.transfer_commission,
+        denom: msg.denom.clone(),
+        unbonding_period,
+    };
 
-        let new_config = Config {
-            owner: owner.clone(),
-            treasury,
-            restake_commission: msg.restake_commission,
-            transfer_commission: msg.transfer_commission,
-            denom: msg.denom.clone(),
-            unbonding_period,
-        };
-
-        VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
-        CONFIG.save(deps.storage, &new_config)?;
-    // }
+    VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
+    CONFIG.save(deps.storage, &new_config)?;
     Ok(())
 }

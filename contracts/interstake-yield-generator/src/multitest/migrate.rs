@@ -3,14 +3,14 @@ use std::str::FromStr;
 use cosmwasm_std::Decimal;
 use interstake_yield_generator_v03::msg::MigrateMsg as MigrateMsgV03;
 
-use crate::{msg::MigrateMsg, state::Config};
+use crate::msg::MigrateMsg;
 
 use super::suite::{SuiteBuilder, VALIDATOR_1};
 
 #[test]
 fn recently_failed_migration() {
-    /// This test is a reproduction of a bug that happened on mainnet and
-    /// it includes a potential fix, which includes overwriting the config completely.
+    // This test is a reproduction of a bug that happened on mainnet and
+    // it includes a potential fix, which includes overwriting the config completely.
     let mut suite = SuiteBuilder::new().build();
     let owner = suite.owner();
 
@@ -32,7 +32,9 @@ fn recently_failed_migration() {
         .unwrap();
 
     // Migration is succesful, but querying the config fails (on mainnet).
-    let err = suite.query_config().unwrap_err();
+    suite
+        .query_contract_config(suite.contract_v02.clone())
+        .unwrap_err();
 
     // (2) Now er try to re-migrate, from V0.3.0 to the new version( probably v0.3.1).
     let _res = suite
@@ -53,11 +55,11 @@ fn recently_failed_migration() {
         .unwrap();
 
     // the config should now be correct.
-    // but the config somehow is still broken.
-    suite.query_config().unwrap();
+    suite
+        .query_contract_config(suite.contract_v03.clone())
+        .unwrap();
 
-    // (3) Now er try to re-migrate, from latest version CONTAINING proper
-    // migration mechanism to the new version
+    // (3) Now er try to re-migrate, from latest version to latest version
     let _res = suite
         .migrate(
             suite.owner().as_str(),
@@ -75,7 +77,5 @@ fn recently_failed_migration() {
         )
         .unwrap();
 
-    // the config should now be correct.
-    // but the config somehow is still broken.
-    suite.query_config().unwrap();
+    suite.query_contract_config(suite.contract.clone()).unwrap();
 }
