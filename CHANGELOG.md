@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.4.0](https://github.com/Interstake/interstake-contracts/tree/v0.4.0) (2022-12-17)
+
+[Full Changelog](https://github.com/Interstake/interstake-contracts/compare/v0.3.0...v0.4.0)
+
+**Merged pull requests:**
+
+- Mb/migration tests [\#18](https://github.com/Interstake/interstake-contracts/pull/18) ([ueco-jb](https://github.com/ueco-jb))
+
 ## [v0.3.0](https://github.com/Interstake/interstake-contracts/tree/v0.3.0) (2022-12-15)
 
 [Full Changelog](https://github.com/Interstake/interstake-contracts/compare/v0.2.0...v0.3.0)
