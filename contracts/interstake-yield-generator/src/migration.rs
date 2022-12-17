@@ -23,7 +23,7 @@ pub fn migrate_config(
     version: &Version,
     msg: MigrateMsg,
 ) -> Result<(), ContractError> {
-    if *version < "0.1.4".parse::<Version>().unwrap() {
+    //if *version < "0.3.0".parse::<Version>().unwrap() {
         // let old_storage: Item<ConfigV0_1_5> = Item::new("config");
 
         let owner = deps.api.addr_validate(&msg.owner)?;
@@ -45,7 +45,7 @@ pub fn migrate_config(
         };
 
         VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
-        CONFIG.save(deps.storage, &new_config)?
-    }
+        CONFIG.save(deps.storage, &new_config)?;
+    // }
     Ok(())
 }

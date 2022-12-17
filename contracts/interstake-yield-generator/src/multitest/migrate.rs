@@ -54,5 +54,28 @@ fn recently_failed_migration() {
 
     // the config should now be correct.
     // but the config somehow is still broken.
-    let config: Config = suite.query_config().unwrap();
+    suite.query_config().unwrap_err();
+
+    // (3) Now er try to re-migrate, from latest version CONTAINING proper
+    // migration mechanism to the new version
+    let _res = suite
+        .migrate(
+            suite.owner().as_str(),
+            suite.contract.clone(),
+            suite.contract_code_id,
+            &MigrateMsg {
+                owner: owner.to_string(),
+                treasury: treasury.to_string(),
+                staking_addr: VALIDATOR_1.to_string(),
+                restake_commission,
+                transfer_commission,
+                denom: "ujuno".to_string(),
+                unbonding_period: None,
+            },
+        )
+        .unwrap();
+
+    // the config should now be correct.
+    // but the config somehow is still broken.
+    suite.query_config().unwrap();
 }

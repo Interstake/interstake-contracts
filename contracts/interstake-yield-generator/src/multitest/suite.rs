@@ -238,7 +238,7 @@ pub struct Suite {
     pub app: App,
     owner: Addr,
     treasury: Addr,
-    contract: Addr,
+    pub contract: Addr,
     pub contract_code_id: u64,
     pub contract_v02: Addr,
     pub contract_v03: Addr,
