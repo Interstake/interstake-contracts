@@ -1,12 +1,11 @@
 on:
   push:
     branches:
-      -master
+      - master
 
 name: Code coverage check
 
 jobs:
-
   coverage:
     name: Code Coverage
     # https://github.com/actions/virtual-environments
