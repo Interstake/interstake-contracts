@@ -240,8 +240,8 @@ pub struct Suite {
     treasury: Addr,
     contract: Addr,
     pub contract_code_id: u64,
-    contract_v02: Addr,
-    contract_v03: Addr,
+    pub contract_v02: Addr,
+    pub contract_v03: Addr,
     pub contract_v02_code_id: u64,
     pub contract_v03_code_id: u64,
 }
@@ -501,17 +501,12 @@ impl Suite {
     pub fn migrate<T: Serialize>(
         &mut self,
         sender: &str,
+        contract: Addr,
         code_id: u64,
-        treasury: &str,
-        transfer_commission: String,
         msg: &T,
     ) -> AnyResult<AppResponse> {
         self.contract = self.contract_v02.clone();
-        self.app.migrate_contract(
-            Addr::unchecked(sender),
-            self.contract_v02.clone(),
-            msg,
-            code_id,
-        )
+        self.app
+            .migrate_contract(Addr::unchecked(sender), contract, msg, code_id)
     }
 }

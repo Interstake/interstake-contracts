@@ -22,9 +22,8 @@ fn recently_failed_migration() {
     let _res = suite
         .migrate(
             suite.owner().as_str(),
+            suite.contract_v02.clone(),
             suite.contract_v03_code_id,
-            treasury,
-            transfer_commission.to_string(),
             &MigrateMsgV03 {
                 treasury: owner.to_string(),
                 transfer_commission,
@@ -35,22 +34,23 @@ fn recently_failed_migration() {
     // Migration is succesful, but querying the config fails (on mainnet).
     let err = suite.query_config().unwrap_err();
 
-    // (2) Now er try to re-migrate, from V0.03 to the new version( probably v0.3.1).
-    let _res = suite.migrate(
-        suite.owner().as_str(),
-        suite.contract_code_id,
-        treasury,
-        "0.002".to_string(),
-        &MigrateMsg {
-            owner: owner.to_string(),
-            treasury: treasury.to_string(),
-            staking_addr: VALIDATOR_1.to_string(),
-            restake_commission,
-            transfer_commission,
-            denom: "ujuno".to_string(),
-            unbonding_period: None,
-        },
-    );
+    // (2) Now er try to re-migrate, from V0.3.0 to the new version( probably v0.3.1).
+    let _res = suite
+        .migrate(
+            suite.owner().as_str(),
+            suite.contract_v03.clone(),
+            suite.contract_code_id,
+            &MigrateMsg {
+                owner: owner.to_string(),
+                treasury: treasury.to_string(),
+                staking_addr: VALIDATOR_1.to_string(),
+                restake_commission,
+                transfer_commission,
+                denom: "ujuno".to_string(),
+                unbonding_period: None,
+            },
+        )
+        .unwrap();
 
     // the config should now be correct.
     // but the config somehow is still broken.
