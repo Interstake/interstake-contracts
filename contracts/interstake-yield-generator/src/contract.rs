@@ -285,27 +285,24 @@ mod execute {
 
         STAKE_DETAILS.save(deps.storage, &info.sender, &stake_details)?;
 
+        // IMPORTANT: This will only queue the undelegation. The property processed is set to false.    
         // Unbonding will result in coins going back to contract.
         // Create a claim to later be able to get tokens back.
-        let release_timestamp = env
-            .block
-            .time
-            .plus_seconds(config.unbonding_period.seconds() + 60*60*24*5); // add 5 days to be sure. This is super hacky but works for
         UNBONDING_CLAIMS.update(deps.storage, &info.sender, |vec_claims| -> StdResult<_> {
             let mut vec_claims = vec_claims.unwrap_or_default();
             vec_claims.push(ClaimDetails {
-                release_timestamp,
+                release_timestamp: None,
                 amount: amount.clone(),
-                processed: false,
             });
             Ok(vec_claims)
         })?;
 
-        Ok(Response::new()
+        Ok(
+            Response::new()
             .add_attribute("action", "queue_undelegate")
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
-            .add_attribute("release_timestamp", release_timestamp.to_string()))
+        )
 
     }
 
@@ -326,10 +323,9 @@ mod execute {
             UNBONDING_CLAIMS.update(deps.storage, &key, |vec_claims| -> StdResult<_> {
                 let mut vec_claims = vec_claims.unwrap_or_default();
                 vec_claims.iter_mut().for_each(|claim_detail| {
-                    if !claim_detail.processed {
-                        claim_detail.processed = true;
+                    if claim_detail.release_timestamp.is_none() {
                         unbond_amount += claim_detail.amount.amount;
-                        claim_detail.release_timestamp = release_timestamp;
+                        claim_detail.release_timestamp = Some(release_timestamp);
                     }
                 });
                 Ok(vec_claims)
@@ -360,11 +356,16 @@ mod execute {
             .into_iter()
             .filter(|claim| {
                 // if claim release is still not met
-                if claim.release_timestamp > env.block.time {
+                if let Some(release_timestamp) = claim.release_timestamp {
+                    if release_timestamp > env.block.time {
+                        unmet_claims.push(claim.clone());
+                        false
+                    } else {
+                        true
+                    }
+                } else {
                     unmet_claims.push(claim.clone());
                     false
-                } else {
-                    true
                 }
             })
             .enumerate()
@@ -676,8 +677,7 @@ mod execute {
                 addr.clone(),
                 ClaimDetails {
                     amount: claim_amount.clone(),
-                    release_timestamp,
-                    processed: true, // here processed can be true because we send the undelegate msgs in this function
+                    release_timestamp: Some(release_timestamp),
                 },
             ));
         }

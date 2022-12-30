@@ -52,9 +52,8 @@ impl StakeDetails {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct ClaimDetails {
-    pub release_timestamp: Timestamp,
+    pub release_timestamp: Option<Timestamp>,
     pub amount: Coin,
-    pub processed: bool,
 }
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
