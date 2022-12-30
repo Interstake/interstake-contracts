@@ -307,6 +307,9 @@ mod execute {
     }
 
     pub fn reconcile(deps: DepsMut, env: Env, _info: MessageInfo) -> Result<Response, ContractError> {
+        UNBOND_INFO.update(deps.storage, |info: UnbondInfo| -> Result<_, ContractError> {
+            Ok(info.unbond_now(env.block.time)?)
+        })?;
 
         let config = CONFIG.load(deps.storage)?;
 

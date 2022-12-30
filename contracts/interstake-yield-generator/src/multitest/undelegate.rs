@@ -48,13 +48,13 @@ fn create_basic_claim(i: u32) {
     );
 
     suite.undelegate(user, coin(100, "ujuno")).unwrap();
+    suite.reconcile(user).unwrap();
     let current_time = suite.app.block_info().time;
     assert_eq!(
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(100, "ujuno"),
-            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
-        }]
+            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))}]
     );
 
     assert_eq!(
@@ -64,6 +64,13 @@ fn create_basic_claim(i: u32) {
             total_staked: Uint128::zero(),
             total_earnings: Uint128::zero(),
         }
+    );
+
+
+    let err = suite.reconcile(user).unwrap_err();
+    assert_eq!(
+        ContractError::UnbondingTooSoon {  },
+        err.downcast().unwrap()
     );
 }
 
@@ -91,12 +98,13 @@ fn undelegate_part_of_tokens(i: u32) {
     );
 
     suite.undelegate(user, coin(700, "ujuno")).unwrap();
+    suite.reconcile(user).unwrap();
     let current_time = suite.app.block_info().time;
     assert_eq!(
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(700, "ujuno"),
-            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
+            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
         }]
     );
 
@@ -141,12 +149,13 @@ fn cant_undelegate_partially_delegated_tokens() {
     );
 
     suite.undelegate(user, coin(500, "ujuno")).unwrap();
+    suite.reconcile(user).unwrap();
     let current_time = suite.app.block_info().time;
     assert_eq!(
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(500, "ujuno"),
-            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
+            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
         }]
     );
     assert_eq!(
@@ -168,13 +177,14 @@ fn unexpired_claims_arent_removed() {
 
     suite.delegate(user, coin(500, "ujuno")).unwrap();
     suite.undelegate(user, coin(500, "ujuno")).unwrap();
+    suite.reconcile(user).unwrap();
 
     let current_time = suite.app.block_info().time;
     assert_eq!(
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(500, "ujuno"),
-            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
+            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
         }]
     );
 
@@ -183,6 +193,7 @@ fn unexpired_claims_arent_removed() {
     suite.delegate(user, coin(700, "ujuno")).unwrap();
     suite.restake("owner").unwrap();
     suite.undelegate(user, coin(700, "ujuno")).unwrap();
+    suite.reconcile(user).unwrap();
 
     // nothing happens
     let current_time = suite.app.block_info().time;
@@ -193,11 +204,11 @@ fn unexpired_claims_arent_removed() {
         vec![
             ClaimDetails {
                 amount: coin(500, "ujuno"),
-                release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS / 2)
+                release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS / 2))
             },
             ClaimDetails {
                 amount: coin(700, "ujuno"),
-                release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
+                release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
             }
         ]
     );
@@ -211,7 +222,7 @@ fn unexpired_claims_arent_removed() {
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(700, "ujuno"),
-            release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS / 2)
+            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS / 2))
         }]
     );
 }
@@ -266,7 +277,7 @@ fn undelegate_all(i: u32, n_users: u32) {
             suite.query_claims(user.as_str()).unwrap(),
             vec![ClaimDetails {
                 amount: coin(700, "ujuno"),
-                release_timestamp: current_time.plus_seconds(TWENTY_EIGHT_DAYS)
+                release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
             }]
         );
     }

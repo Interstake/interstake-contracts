@@ -417,6 +417,15 @@ impl Suite {
         )
     }
 
+    pub fn reconcile(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.contract.clone(),
+            &ExecuteMsg::Reconcile {},
+            &[],
+        )
+    }
+
     pub fn query_config(&self) -> AnyResult<Config> {
         let response: ConfigResponse = self
             .app

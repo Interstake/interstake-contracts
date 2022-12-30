@@ -573,6 +573,7 @@ fn redelegate_after_validator_list_update() {
         .unwrap();
 
     suite.undelegate("user", coin(1000u128, "ujuno")).unwrap();
+    suite.reconcile("user").unwrap();
     suite.advance_time(TWENTY_EIGHT_DAYS);
     suite.process_staking_queue().unwrap();
 

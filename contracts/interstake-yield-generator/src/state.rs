@@ -64,10 +64,9 @@ pub struct UnbondInfo {
 pub const FOUR_DAYS: u64 = 4*60*60*24;
 
 impl UnbondInfo {
-    fn unbond_now(&mut self, now:Timestamp) -> Result<(), ContractError> {
-        if self.latest.plus_seconds(FOUR_DAYS) < now {
-            self.latest = now;
-            Ok(())
+    pub fn unbond_now(self, now:Timestamp) -> Result<UnbondInfo, ContractError> {
+        if self.latest.plus_seconds(FOUR_DAYS) <= now {
+            Ok(UnbondInfo { latest: now })
         } else {
             Err(ContractError::UnbondingTooSoon {  })
         }
