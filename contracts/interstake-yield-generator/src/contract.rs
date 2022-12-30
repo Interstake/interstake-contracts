@@ -18,7 +18,7 @@ use crate::msg::{
 };
 use crate::state::{
     ClaimDetails, Config, Stake, StakeDetails, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS, TOTAL,
-    UNBONDING_CLAIMS, VALIDATOR_LIST,
+    UNBONDING_CLAIMS, VALIDATOR_LIST, UNBOND_INFO, UnbondInfo,
 };
 
 use std::collections::HashMap;
@@ -55,6 +55,9 @@ pub fn instantiate(
         unbonding_period,
     };
     CONFIG.save(deps.storage, &config)?;
+
+    // sets the latest unbonding period to 4 days before now so new unbonding can start immediately if triggered
+    UNBOND_INFO.save(deps.storage, &UnbondInfo::new(env.block.time))?;
 
     let response = Response::new()
         .add_attribute("action", "instantiate")
@@ -98,7 +101,7 @@ pub fn execute(
             execute::update_validator_list(deps, info, new_validator_list)
         }
         ExecuteMsg::Delegate {} => execute::delegate(deps, env, info),
-        ExecuteMsg::Undelegate { amount } => execute::undelegate(deps, env, info, amount),
+        ExecuteMsg::Undelegate { amount } => execute::queue_undelegate(deps, env, info, amount),
         ExecuteMsg::Claim {} => execute::claim(deps, env, info),
         ExecuteMsg::Restake {} => execute::restake(deps, env),
         ExecuteMsg::Transfer {
@@ -119,6 +122,9 @@ pub fn execute(
         }
         ExecuteMsg::RemoveAllowedAddr { address } => {
             execute::remove_allowed_address(deps, info, address)
+        },
+        ExecuteMsg::Reconcile {  } => {
+            execute::reconcile(deps, env, info)
         }
     }
 }
@@ -254,7 +260,7 @@ mod execute {
             .add_messages(msgs))
     }
 
-    pub fn undelegate(
+    pub fn queue_undelegate(
         deps: DepsMut,
         env: Env,
         info: MessageInfo,
@@ -277,35 +283,71 @@ mod execute {
                 have: stake_details.total.amount,
             })?;
 
-        let msgs = delegate_msgs_for_validators(deps.as_ref(), amount.clone(), false)?;
-
-        TOTAL.update(deps.storage, |total| -> StdResult<_> {
-            Ok(coin((total.amount - amount.amount).u128(), total.denom))
-        })?;
+        STAKE_DETAILS.save(deps.storage, &info.sender, &stake_details)?;
 
         // Unbonding will result in coins going back to contract.
         // Create a claim to later be able to get tokens back.
         let release_timestamp = env
             .block
             .time
-            .plus_seconds(config.unbonding_period.seconds());
+            .plus_seconds(config.unbonding_period.seconds() + 60*60*24*5); // add 5 days to be sure. This is super hacky but works for
         UNBONDING_CLAIMS.update(deps.storage, &info.sender, |vec_claims| -> StdResult<_> {
             let mut vec_claims = vec_claims.unwrap_or_default();
             vec_claims.push(ClaimDetails {
                 release_timestamp,
                 amount: amount.clone(),
+                processed: false,
             });
             Ok(vec_claims)
         })?;
 
-        STAKE_DETAILS.save(deps.storage, &info.sender, &stake_details)?;
-
         Ok(Response::new()
-            .add_attribute("action", "undelegate")
+            .add_attribute("action", "queue_undelegate")
             .add_attribute("sender", info.sender.to_string())
             .add_attribute("amount", amount.to_string())
-            .add_attribute("release_timestamp", release_timestamp.to_string())
-            .add_messages(msgs))
+            .add_attribute("release_timestamp", release_timestamp.to_string()))
+
+    }
+
+    pub fn reconcile(deps: DepsMut, env: Env, _info: MessageInfo) -> Result<Response, ContractError> {
+
+        let config = CONFIG.load(deps.storage)?;
+
+        let release_timestamp = env.block.time
+            .plus_seconds(config.unbonding_period.seconds());
+
+        let keys = UNBONDING_CLAIMS.keys(deps.storage, None, None, Ascending)
+            .map(|item| item.unwrap())
+            .collect::<Vec<Addr>>();
+
+        let mut unbond_amount = Uint128::zero();
+        for key in keys {
+            // update all claims that are not processed 
+            UNBONDING_CLAIMS.update(deps.storage, &key, |vec_claims| -> StdResult<_> {
+                let mut vec_claims = vec_claims.unwrap_or_default();
+                vec_claims.iter_mut().for_each(|claim_detail| {
+                    if !claim_detail.processed {
+                        claim_detail.processed = true;
+                        unbond_amount += claim_detail.amount.amount;
+                        claim_detail.release_timestamp = release_timestamp;
+                    }
+                });
+                Ok(vec_claims)
+            })?;
+        }
+        
+        TOTAL.update(deps.storage, |total| -> StdResult<_> {
+            Ok(coin((total.amount - unbond_amount).u128(), total.denom))
+        })?;
+
+        let undelegate_msgs = delegate_msgs_for_validators(deps.as_ref(), coin(unbond_amount.u128(), config.denom), false)?;
+
+        Ok(
+            Response::new()
+                .add_messages(undelegate_msgs)
+                .add_attribute("action", "reconcile")
+                .add_attribute("unbond_amount", unbond_amount.to_string())
+        )
     }
 
     pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
@@ -635,6 +677,7 @@ mod execute {
                 ClaimDetails {
                     amount: claim_amount.clone(),
                     release_timestamp,
+                    processed: true, // here processed can be true because we send the undelegate msgs in this function
                 },
             ));
         }
@@ -887,10 +930,10 @@ mod query {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let storage_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrate_config(deps, &storage_version, msg)?;
+    migrate_config(deps, env, &storage_version, msg)?;
     Ok(Response::new())
 }
 

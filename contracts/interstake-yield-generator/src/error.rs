@@ -48,6 +48,9 @@ pub enum ContractError {
     #[error("Commission address may not be the same as the recipient")]
     CommissionAddressSameAsRecipient {},
 
+    #[error("Unbonding called too soon after last unbonding")]
+    UnbondingTooSoon {},
+
     #[error("Semver parsing error: {0}")]
     SemVer(String),
 }

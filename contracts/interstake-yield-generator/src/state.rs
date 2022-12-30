@@ -3,7 +3,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Coin, Decimal, StdResult, Storage, Timestamp, Uint128};
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Item, Map, IndexedMap, MultiIndex, IndexList, Index};
+
+use crate::ContractError;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -47,14 +49,46 @@ impl StakeDetails {
         Ok(())
     }
 }
-
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct ClaimDetails {
     pub release_timestamp: Timestamp,
     pub amount: Coin,
+    pub processed: bool,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct UnbondInfo {
+    pub latest: Timestamp,
 }
 
+pub const FOUR_DAYS: u64 = 4*60*60*24;
+
+impl UnbondInfo {
+    fn unbond_now(&mut self, now:Timestamp) -> Result<(), ContractError> {
+        if self.latest.plus_seconds(FOUR_DAYS) < now {
+            self.latest = now;
+            Ok(())
+        } else {
+            Err(ContractError::UnbondingTooSoon {  })
+        }
+    }
+
+    pub fn now(now:Timestamp) -> Self {
+        UnbondInfo {
+            latest: now,
+        }
+    }
+
+    pub fn new(now:Timestamp) -> Self {
+        UnbondInfo {
+            latest: now.minus_seconds(FOUR_DAYS),
+        }
+    }
+}
+
+
+pub const UNBOND_INFO : Item<UnbondInfo> = Item::new("unbond_info");
 pub const CONFIG: Item<Config> = Item::new("config");
 // Total amount of staked tokens
 // TODO: Replace with Vec<Coin>

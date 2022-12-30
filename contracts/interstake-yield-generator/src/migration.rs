@@ -2,11 +2,11 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Decimal, DepsMut, Timestamp};
+use cosmwasm_std::{Addr, Decimal, DepsMut, Timestamp, Env};
 
 use crate::error::ContractError;
 use crate::msg::MigrateMsg;
-use crate::state::{Config, CONFIG, VALIDATOR_LIST};
+use crate::state::{Config, CONFIG, VALIDATOR_LIST, UNBOND_INFO, UnbondInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -19,6 +19,7 @@ pub struct ConfigV0_1_5 {
 
 pub fn migrate_config(
     deps: DepsMut,
+    env: Env,
     _version: &Version,
     msg: MigrateMsg,
 ) -> Result<(), ContractError> {
@@ -39,6 +40,9 @@ pub fn migrate_config(
         denom: msg.denom.clone(),
         unbonding_period,
     };
+
+    // sets the latest unbonding period to 4 days from now
+    UNBOND_INFO.save(deps.storage, &UnbondInfo::now(env.block.time))?;
 
     VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
     CONFIG.save(deps.storage, &new_config)?;

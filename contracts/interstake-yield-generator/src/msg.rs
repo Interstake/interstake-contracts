@@ -50,6 +50,8 @@ pub enum ExecuteMsg {
         amount: Uint128,
         commission_address: Option<String>,
     },
+    /// Start unbonding current batch
+    Reconcile {},
     /// Undelegates all tokens
     UndelegateAll {},
     /// adds (or updates) address to allowed list
