@@ -25,6 +25,7 @@ use crate::msg::{
 use crate::state::{ClaimDetails, Config};
 
 pub const TWENTY_EIGHT_DAYS: u64 = 3600 * 24 * 28;
+pub const FOUR_DAYS: u64 = 3600 * 24 * 4;
 
 pub fn contract_yield_generator<C>() -> Box<dyn Contract<C>>
 where

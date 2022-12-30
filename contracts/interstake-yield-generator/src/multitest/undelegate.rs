@@ -1,6 +1,6 @@
 use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
-use crate::error::ContractError;
+use crate::{error::ContractError, multitest::suite::FOUR_DAYS};
 use crate::msg::DelegateResponse;
 use crate::multitest::suite::validator_list;
 use crate::state::ClaimDetails;
@@ -72,6 +72,11 @@ fn create_basic_claim(i: u32) {
         ContractError::UnbondingTooSoon {  },
         err.downcast().unwrap()
     );
+
+
+    suite.advance_time(FOUR_DAYS);
+    suite.reconcile(user).unwrap();
+
 }
 
 #[test_case(1; "single_validator")]
