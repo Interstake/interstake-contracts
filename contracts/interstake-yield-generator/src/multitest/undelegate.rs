@@ -73,7 +73,6 @@ fn create_basic_claim(i: u32) {
         err.downcast().unwrap()
     );
 
-
     suite.advance_time(FOUR_DAYS);
     suite.reconcile(user).unwrap();
 

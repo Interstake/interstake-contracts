@@ -262,12 +262,10 @@ mod execute {
 
     pub fn queue_undelegate(
         deps: DepsMut,
-        env: Env,
+        _env: Env,
         info: MessageInfo,
         amount: Coin,
     ) -> Result<Response, ContractError> {
-        let config = CONFIG.load(deps.storage)?;
-
         let mut stake_details = STAKE_DETAILS
             .load(deps.storage, &info.sender)
             .map_err(|_| ContractError::DelegationNotFound {})?;
@@ -308,7 +306,7 @@ mod execute {
 
     pub fn reconcile(deps: DepsMut, env: Env, _info: MessageInfo) -> Result<Response, ContractError> {
         UNBOND_INFO.update(deps.storage, |info: UnbondInfo| -> Result<_, ContractError> {
-            Ok(info.unbond_now(env.block.time)?)
+            info.unbond_now(env.block.time)
         })?;
 
         let config = CONFIG.load(deps.storage)?;
