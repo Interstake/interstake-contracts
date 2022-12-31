@@ -2,11 +2,11 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Decimal, DepsMut, Timestamp, Env};
+use cosmwasm_std::{Addr, Decimal, DepsMut, Env, Timestamp};
 
 use crate::error::ContractError;
 use crate::msg::MigrateMsg;
-use crate::state::{Config, CONFIG, VALIDATOR_LIST, UNBOND_INFO, UnbondInfo};
+use crate::state::{Config, UnbondInfo, CONFIG, UNBOND_INFO, VALIDATOR_LIST};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

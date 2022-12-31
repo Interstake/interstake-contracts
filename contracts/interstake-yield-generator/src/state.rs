@@ -61,32 +61,29 @@ pub struct UnbondInfo {
     pub latest: Timestamp,
 }
 
-pub const FOUR_DAYS: u64 = 4*60*60*24;
+pub const FOUR_DAYS: u64 = 4 * 60 * 60 * 24;
 
 impl UnbondInfo {
-    pub fn unbond_now(self, now:Timestamp) -> Result<UnbondInfo, ContractError> {
+    pub fn unbond_now(self, now: Timestamp) -> Result<UnbondInfo, ContractError> {
         if self.latest.plus_seconds(FOUR_DAYS) <= now {
             Ok(UnbondInfo { latest: now })
         } else {
-            Err(ContractError::UnbondingTooSoon {  })
+            Err(ContractError::UnbondingTooSoon {})
         }
     }
 
-    pub fn now(now:Timestamp) -> Self {
-        UnbondInfo {
-            latest: now,
-        }
+    pub fn now(now: Timestamp) -> Self {
+        UnbondInfo { latest: now }
     }
 
-    pub fn new(now:Timestamp) -> Self {
+    pub fn new(now: Timestamp) -> Self {
         UnbondInfo {
             latest: now.minus_seconds(FOUR_DAYS),
         }
     }
 }
 
-
-pub const UNBOND_INFO : Item<UnbondInfo> = Item::new("unbond_info");
+pub const UNBOND_INFO: Item<UnbondInfo> = Item::new("unbond_info");
 pub const CONFIG: Item<Config> = Item::new("config");
 // Total amount of staked tokens
 // TODO: Replace with Vec<Coin>

@@ -1,9 +1,9 @@
 use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
-use crate::{error::ContractError, multitest::suite::FOUR_DAYS};
 use crate::msg::DelegateResponse;
 use crate::multitest::suite::validator_list;
 use crate::state::ClaimDetails;
+use crate::{error::ContractError, multitest::suite::FOUR_DAYS};
 use cosmwasm_std::{coin, coins, Addr, Uint128};
 use test_case::test_case;
 
@@ -54,7 +54,8 @@ fn create_basic_claim(i: u32) {
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(100, "ujuno"),
-            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))}]
+            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
+        }]
     );
 
     assert_eq!(
@@ -66,16 +67,11 @@ fn create_basic_claim(i: u32) {
         }
     );
 
-
     let err = suite.reconcile(user).unwrap_err();
-    assert_eq!(
-        ContractError::UnbondingTooSoon {  },
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::UnbondingTooSoon {}, err.downcast().unwrap());
 
     suite.advance_time(FOUR_DAYS);
     suite.reconcile(user).unwrap();
-
 }
 
 #[test_case(1; "single_validator")]

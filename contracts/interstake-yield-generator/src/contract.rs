@@ -17,8 +17,8 @@ use crate::msg::{
     TotalDelegatedResponse,
 };
 use crate::state::{
-    ClaimDetails, Config, Stake, StakeDetails, CONFIG, LAST_PAYMENT_BLOCK, STAKE_DETAILS, TOTAL,
-    UNBONDING_CLAIMS, VALIDATOR_LIST, UNBOND_INFO, UnbondInfo,
+    ClaimDetails, Config, Stake, StakeDetails, UnbondInfo, CONFIG, LAST_PAYMENT_BLOCK,
+    STAKE_DETAILS, TOTAL, UNBONDING_CLAIMS, UNBOND_INFO, VALIDATOR_LIST,
 };
 
 use std::collections::HashMap;
@@ -122,10 +122,8 @@ pub fn execute(
         }
         ExecuteMsg::RemoveAllowedAddr { address } => {
             execute::remove_allowed_address(deps, info, address)
-        },
-        ExecuteMsg::Reconcile {  } => {
-            execute::reconcile(deps, env, info)
         }
+        ExecuteMsg::Reconcile {} => execute::reconcile(deps, env, info),
     }
 }
 
@@ -283,7 +281,7 @@ mod execute {
 
         STAKE_DETAILS.save(deps.storage, &info.sender, &stake_details)?;
 
-        // IMPORTANT: This will only queue the undelegation. The property processed is set to false.    
+        // IMPORTANT: This will only queue the undelegation. The property processed is set to false.
         // Unbonding will result in coins going back to contract.
         // Create a claim to later be able to get tokens back.
         UNBONDING_CLAIMS.update(deps.storage, &info.sender, |vec_claims| -> StdResult<_> {
@@ -295,32 +293,37 @@ mod execute {
             Ok(vec_claims)
         })?;
 
-        Ok(
-            Response::new()
+        Ok(Response::new()
             .add_attribute("action", "queue_undelegate")
             .add_attribute("sender", info.sender.to_string())
-            .add_attribute("amount", amount.to_string())
-        )
-
+            .add_attribute("amount", amount.to_string()))
     }
 
-    pub fn reconcile(deps: DepsMut, env: Env, _info: MessageInfo) -> Result<Response, ContractError> {
-        UNBOND_INFO.update(deps.storage, |info: UnbondInfo| -> Result<_, ContractError> {
-            info.unbond_now(env.block.time)
-        })?;
+    pub fn reconcile(
+        deps: DepsMut,
+        env: Env,
+        _info: MessageInfo,
+    ) -> Result<Response, ContractError> {
+        UNBOND_INFO.update(
+            deps.storage,
+            |info: UnbondInfo| -> Result<_, ContractError> { info.unbond_now(env.block.time) },
+        )?;
 
         let config = CONFIG.load(deps.storage)?;
 
-        let release_timestamp = env.block.time
+        let release_timestamp = env
+            .block
+            .time
             .plus_seconds(config.unbonding_period.seconds());
 
-        let keys = UNBONDING_CLAIMS.keys(deps.storage, None, None, Ascending)
+        let keys = UNBONDING_CLAIMS
+            .keys(deps.storage, None, None, Ascending)
             .map(|item| item.unwrap())
             .collect::<Vec<Addr>>();
 
         let mut unbond_amount = Uint128::zero();
         for key in keys {
-            // update all claims that are not processed 
+            // update all claims that are not processed
             UNBONDING_CLAIMS.update(deps.storage, &key, |vec_claims| -> StdResult<_> {
                 let mut vec_claims = vec_claims.unwrap_or_default();
                 vec_claims.iter_mut().for_each(|claim_detail| {
@@ -332,19 +335,21 @@ mod execute {
                 Ok(vec_claims)
             })?;
         }
-        
+
         TOTAL.update(deps.storage, |total| -> StdResult<_> {
             Ok(coin((total.amount - unbond_amount).u128(), total.denom))
         })?;
 
-        let undelegate_msgs = delegate_msgs_for_validators(deps.as_ref(), coin(unbond_amount.u128(), config.denom), false)?;
+        let undelegate_msgs = delegate_msgs_for_validators(
+            deps.as_ref(),
+            coin(unbond_amount.u128(), config.denom),
+            false,
+        )?;
 
-        Ok(
-            Response::new()
-                .add_messages(undelegate_msgs)
-                .add_attribute("action", "reconcile")
-                .add_attribute("unbond_amount", unbond_amount.to_string())
-        )
+        Ok(Response::new()
+            .add_messages(undelegate_msgs)
+            .add_attribute("action", "reconcile")
+            .add_attribute("unbond_amount", unbond_amount.to_string()))
     }
 
     pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
