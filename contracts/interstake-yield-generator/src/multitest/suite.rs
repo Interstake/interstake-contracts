@@ -72,6 +72,7 @@ pub struct SuiteBuilder {
     pub restake_commission: Decimal,
     pub transfer_commission: Decimal,
     pub validator_commission: Decimal,
+    pub number_of_validators: u32,
     pub funds: Vec<(Addr, Vec<Coin>)>,
     pub denom: String,
 }
@@ -86,10 +87,16 @@ impl SuiteBuilder {
             restake_commission: Decimal::zero(),
             transfer_commission: Decimal::zero(),
             validator_commission: Decimal::percent(5),
+            number_of_validators: 2,
             treasury: "treasury".to_owned(),
             funds: vec![],
             denom: "ujuno".to_owned(),
         }
+    }
+
+    pub fn with_multiple_validators(mut self, number_of_validators: u32) -> Self {
+        self.number_of_validators = number_of_validators;
+        self
     }
 
     /// Sets initial amount of distributable tokens on address
@@ -118,19 +125,16 @@ impl SuiteBuilder {
 
         let mut app: App = App::default();
 
-        let valoper1 = Validator {
-            address: VALIDATOR_1.to_owned(),
-            commission: self.validator_commission,
-            max_commission: Decimal::percent(100),
-            max_change_rate: Decimal::percent(1),
-        };
-
-        let valoper2 = Validator {
-            address: VALIDATOR_2.to_owned(),
-            commission: self.validator_commission,
-            max_commission: Decimal::percent(100),
-            max_change_rate: Decimal::percent(1),
-        };
+        let mut validators: Vec<Validator> = vec![];
+        for number in 1..=self.number_of_validators {
+            let validator = Validator {
+                address: format!("validator{}", number),
+                commission: self.validator_commission,
+                max_commission: Decimal::percent(100),
+                max_change_rate: Decimal::percent(1),
+            };
+            validators.push(validator);
+        }
 
         let staking_info = StakingInfo {
             bonded_denom: "ujuno".to_string(),
@@ -143,16 +147,12 @@ impl SuiteBuilder {
         app.init_modules(|router, api, storage| -> AnyResult<()> {
             router.staking.setup(storage, staking_info).unwrap();
 
-            router
-                .staking
-                .add_validator(api, storage, &block_info, valoper1)
-                .unwrap();
-
-            // add second validator
-            router
-                .staking
-                .add_validator(api, storage, &block_info, valoper2)
-                .unwrap();
+            validators.into_iter().for_each(|validator| {
+                router
+                    .staking
+                    .add_validator(api, storage, &block_info, validator)
+                    .unwrap();
+            });
 
             funds.into_iter().for_each(|(address, coins)| {
                 router.bank.init_balance(storage, &address, coins).unwrap()
