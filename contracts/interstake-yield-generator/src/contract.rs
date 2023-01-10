@@ -6,7 +6,7 @@ use cosmwasm_std::{
     StakingQuery, StdResult, Timestamp, Uint128,
 };
 use cw2::set_contract_version;
-use cw_utils::ensure_from_older_version;
+use cw_utils::{ensure_from_older_version, Duration, Expiration};
 
 use crate::error::ContractError;
 
@@ -17,8 +17,8 @@ use crate::msg::{
     TotalDelegatedResponse,
 };
 use crate::state::{
-    ClaimDetails, Config, Stake, StakeDetails, UnbondInfo, CONFIG, LAST_PAYMENT_BLOCK,
-    STAKE_DETAILS, TOTAL, UNBONDING_CLAIMS, UNBOND_INFO, VALIDATOR_LIST,
+    ClaimDetails, Config, Stake, StakeDetails, CONFIG, LAST_PAYMENT_BLOCK,
+    STAKE_DETAILS, TOTAL, UNBONDING_CLAIMS,  VALIDATOR_LIST, LATEST_UNBONDING,
 };
 
 use std::collections::HashMap;
@@ -37,39 +37,42 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let owner = deps.api.addr_validate(&msg.owner)?;
-    let treasury = deps.api.addr_validate(&msg.treasury)?;
+    let InstantiateMsg { owner, treasury, staking_addr, restake_commission, transfer_commission, denom, unbonding_period, max_entries } = msg;
 
-    let unbonding_period = if let Some(unbonding_period) = msg.unbonding_period {
-        Timestamp::from_seconds(unbonding_period)
-    } else {
-        Timestamp::from_seconds(3600 * 24 * 28) // Default: 28 days
-    };
+    let owner = deps.api.addr_validate(&owner)?;
+    let treasury = deps.api.addr_validate(&treasury)?;
 
+    let max_entries = max_entries.unwrap_or(7);
+    let unbonding_period = unbonding_period.unwrap_or(MIN_EXPIRATION);
+
+
+    let (unbonding_period, min_unbonding_cooldown) = (Duration::Time(unbonding_period), Duration::Time(unbonding_period.saturating_div(max_entries)));
+    
     let config = Config {
         owner: owner.clone(),
         treasury,
-        restake_commission: msg.restake_commission,
-        transfer_commission: msg.transfer_commission,
-        denom: msg.denom.clone(),
+        restake_commission,
+        transfer_commission,
+        denom: denom.clone(),
         unbonding_period,
+        min_unbonding_cooldown, 
     };
     CONFIG.save(deps.storage, &config)?;
 
     // sets the latest unbonding period to 4 days before now so new unbonding can start immediately if triggered
-    UNBOND_INFO.save(deps.storage, &UnbondInfo::new(env.block.time))?;
+    LATEST_UNBONDING.save(deps.storage, &Expiration::AtTime(env.block.time))?;
 
     let response = Response::new()
         .add_attribute("action", "instantiate")
         .add_attribute("owner", owner.into_string())
-        .add_attribute("staking_addr", &msg.staking_addr)
+        .add_attribute("staking_addr", &staking_addr)
         .add_attribute("team_commission", msg.restake_commission.to_string());
 
-    VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
+    VALIDATOR_LIST.save(deps.storage, staking_addr, &Decimal::one())?;
 
     // Initialize last payment block
     LAST_PAYMENT_BLOCK.save(deps.storage, &env.block.height)?;
-    TOTAL.save(deps.storage, &coin(0u128, &msg.denom))?;
+    TOTAL.save(deps.storage, &coin(0u128, &denom))?;
 
     Ok(response)
 }
@@ -123,7 +126,7 @@ pub fn execute(
         ExecuteMsg::RemoveAllowedAddr { address } => {
             execute::remove_allowed_address(deps, info, address)
         }
-        ExecuteMsg::Reconcile {} => execute::reconcile(deps, env, info),
+        ExecuteMsg::BatchUnbond {} => execute::batch_unbond(deps, env, info),
     }
 }
 
@@ -131,12 +134,12 @@ mod execute {
 
     use cw_utils::Expiration;
 
-    use crate::state::{ALLOWED_ADDRESSES, VALIDATOR_LIST};
+    use crate::state::{ALLOWED_ADDRESSES, VALIDATOR_LIST, PENDING_CLAIMS};
 
     use super::{
         utils::{
             compute_redelegate_msgs, delegate_msgs_for_validators, distribute_msgs_for_validators,
-            unwrap_stake_details,
+            unwrap_stake_details, check_unbonding_cooldown,
         },
         *,
     };
@@ -174,7 +177,7 @@ mod execute {
         }
 
         if let Some(unbonding_period) = new_unbonding_period {
-            config.unbonding_period = Timestamp::from_seconds(unbonding_period);
+            config.unbonding_period = Duration::Time(unbonding_period);
         }
 
         CONFIG.save(deps.storage, &config)?;
@@ -281,16 +284,11 @@ mod execute {
 
         STAKE_DETAILS.save(deps.storage, &info.sender, &stake_details)?;
 
-        // IMPORTANT: This will only queue the undelegation. The property processed is set to false.
-        // Unbonding will result in coins going back to contract.
-        // Create a claim to later be able to get tokens back.
-        UNBONDING_CLAIMS.update(deps.storage, &info.sender, |vec_claims| -> StdResult<_> {
-            let mut vec_claims = vec_claims.unwrap_or_default();
-            vec_claims.push(ClaimDetails {
-                release_timestamp: None,
-                amount: amount.clone(),
-            });
-            Ok(vec_claims)
+        // IMPORTANT: This will only queue the undelegation. 
+        // Create (or update) a pending claim to later be able to get tokens back.
+        PENDING_CLAIMS.update(deps.storage, &info.sender, |claim| -> StdResult<_> {
+            let claim = claim.unwrap_or_default();
+            Ok(claim + amount.amount)
         })?;
 
         Ok(Response::new()
@@ -299,45 +297,39 @@ mod execute {
             .add_attribute("amount", amount.to_string()))
     }
 
-    pub fn reconcile(
+    pub fn batch_unbond(
         deps: DepsMut,
         env: Env,
         _info: MessageInfo,
     ) -> Result<Response, ContractError> {
-        UNBOND_INFO.update(
-            deps.storage,
-            |info: UnbondInfo| -> Result<_, ContractError> { info.unbond_now(env.block.time) },
-        )?;
-
         let config = CONFIG.load(deps.storage)?;
+        check_unbonding_cooldown(&deps, &config, &env)?; 
 
-        let release_timestamp = env
-            .block
-            .time
-            .plus_seconds(config.unbonding_period.seconds());
+        LATEST_UNBONDING.save(deps.storage, &Expiration::AtTime(env.block.time))?;
 
-        let keys = UNBONDING_CLAIMS
-            .keys(deps.storage, None, None, Ascending)
-            .map(|item| item.unwrap())
-            .collect::<Vec<Addr>>();
+
+        let release_timestamp = config.unbonding_period.after(&env.block); 
+        let pending_claims = PENDING_CLAIMS
+            .range(deps.storage, None, None, Order::Ascending)
+            .collect::<StdResult<Vec<(Addr, Uint128)>>>()?;
 
         let mut unbond_amount = Uint128::zero();
-        for key in keys {
-            // update all claims that are not processed
-            UNBONDING_CLAIMS.update(deps.storage, &key, |vec_claims| -> StdResult<_> {
+        pending_claims.iter().for_each(|(addr, amount)| {
+            unbond_amount += amount;
+            let claim_details = ClaimDetails {
+                release_timestamp,
+                amount: coin(amount.u128(), &config.denom),
+            };
+
+            UNBONDING_CLAIMS.update(deps.storage, addr, |vec_claims| -> StdResult<_> {
                 let mut vec_claims = vec_claims.unwrap_or_default();
-                vec_claims.iter_mut().for_each(|claim_detail| {
-                    if claim_detail.release_timestamp.is_none() {
-                        unbond_amount += claim_detail.amount.amount;
-                        claim_detail.release_timestamp = Some(release_timestamp);
-                    }
-                });
+                vec_claims.push(claim_details);
                 Ok(vec_claims)
-            })?;
-        }
+            }).unwrap();
+        });
 
         TOTAL.update(deps.storage, |total| -> StdResult<_> {
-            Ok(coin((total.amount - unbond_amount).u128(), total.denom))
+            dbg!(Ok(coin((total.amount - unbond_amount).u128(), total.denom)))
         })?;
 
         let undelegate_msgs = delegate_msgs_for_validators(
@@ -353,55 +345,47 @@ mod execute {
     }
 
     pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-        let mut claims = query::claims(deps.as_ref(), info.sender.clone())?.claims;
-
-        let mut unmet_claims = vec![];
-
-        let amounts = claims
-            .clone()
-            .into_iter()
-            .filter(|claim| {
-                // if claim release is still not met
-                if let Some(release_timestamp) = claim.release_timestamp {
-                    if release_timestamp > env.block.time {
-                        unmet_claims.push(claim.clone());
-                        false
+        let config = CONFIG.load(deps.storage)?;
+        
+        let mut claim_amount = Uint128::zero();
+        let mut expired_claims = vec![];
+        UNBONDING_CLAIMS.update(deps.storage, &info.sender, |vec_claims| -> StdResult<_> {
+            let vec_claims = vec_claims.unwrap_or_default();
+            let mut unexpired_claims = vec![];
+            
+            vec_claims.into_iter().for_each(|claim| {
+                    if claim.release_timestamp.is_expired(&env.block) {
+                        // if claim is expired, add amount and filter out
+                        claim_amount += claim.amount.amount;
+                        expired_claims.push(claim);
                     } else {
-                        true
+                        // if claim is not expired, add to unexpired_claims
+                        unexpired_claims.push(claim);
                     }
-                } else {
-                    unmet_claims.push(claim.clone());
-                    false
-                }
-            })
-            .enumerate()
-            .map(|(index, _)| Ok(claims.remove(index)))
-            .map(|claim: StdResult<ClaimDetails>| {
-                let claim = claim?;
-                Ok(claim.amount)
-            })
-            .collect::<StdResult<Vec<Coin>>>()?;
+                });
 
-        UNBONDING_CLAIMS.save(deps.storage, &info.sender, &unmet_claims)?;
+            Ok(expired_claims.clone())
+        })?;
 
         let mut response = Response::new()
             .add_attribute("action", "claim_unbonded_tokens")
             .add_attribute("sender", info.sender.to_string());
 
-        amounts.iter().for_each(|amount| {
-            response = response.clone().add_attribute("amount", amount.amount);
+        expired_claims.iter().for_each(|claim| {
+            response = response.clone().add_attribute("amount", claim.amount.amount);
             response = response
                 .clone()
-                .add_attribute("denom", amount.denom.clone());
+                .add_attribute("denom", claim.amount.denom.clone());
         });
 
-        if !amounts.is_empty() {
+        if !claim_amount.is_zero() {
             let msg = BankMsg::Send {
                 to_address: info.sender.to_string(),
-                amount: amounts,
+                amount: vec![coin(claim_amount.u128(), &config.denom)],
             };
             response = response.add_message(msg);
         }
+
         Ok(response)
     }
 
@@ -648,10 +632,8 @@ mod execute {
             denom: config.denom.clone(),
         };
 
-        let release_timestamp = env
-            .block
-            .time
-            .plus_seconds(config.unbonding_period.seconds());
+        
+        let release_timestamp = config.unbonding_period.after(&env.block);
 
         let mut new_claim_details: Vec<(Addr, ClaimDetails)> = vec![];
         let mut old_stake_details: Vec<(Addr, StakeDetails)> = vec![];
@@ -683,7 +665,7 @@ mod execute {
                 addr.clone(),
                 ClaimDetails {
                     amount: claim_amount.clone(),
-                    release_timestamp: Some(release_timestamp),
+                    release_timestamp,
                 },
             ));
         }
@@ -793,6 +775,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Delegated { sender } => to_binary(&query::delegated(deps, sender)?),
         QueryMsg::TotalDelegated {} => to_binary(&query::total(deps)?),
         QueryMsg::Reward {} => to_binary(&query::reward(deps, &env, None)?),
+        QueryMsg::PendingClaim { sender } => {
+            let sender = deps.api.addr_validate(&sender)?;
+            to_binary(&query::pending_claim(deps, sender)?)},
         QueryMsg::Claims { sender } => {
             let sender = deps.api.addr_validate(&sender)?;
             to_binary(&query::claims(deps, sender)?)
@@ -809,9 +794,9 @@ mod query {
     use crate::{
         msg::{
             AllowedAddrListResponse, AllowedAddrResponse, ValidatorWeightResponse,
-            ValidatorsResponse,
+            ValidatorsResponse, PendingClaimResponse,
         },
-        state::{ALLOWED_ADDRESSES, VALIDATOR_LIST},
+        state::{ALLOWED_ADDRESSES, VALIDATOR_LIST, PENDING_CLAIMS},
     };
     use cosmwasm_std::Order::Ascending;
     use cw_utils::Expiration;
@@ -893,6 +878,13 @@ mod query {
         Ok(reward_response)
     }
 
+    pub fn pending_claim(deps: Deps, sender: Addr) -> StdResult<PendingClaimResponse> {
+        let amount = PENDING_CLAIMS
+            .load(deps.storage, &sender)
+            .unwrap_or_default();
+        Ok(PendingClaimResponse { amount })
+    }
+
     pub fn claims(deps: Deps, sender: Addr) -> StdResult<ClaimsResponse> {
         let claims = UNBONDING_CLAIMS
             .load(deps.storage, &sender)
@@ -945,11 +937,25 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
 
 pub mod utils {
 
+    use std::ops::Add;
+
     use cosmwasm_std::{Fraction, Order::Ascending};
 
     use crate::state::VALIDATOR_LIST;
 
     use super::*;
+    
+    pub fn check_unbonding_cooldown(deps: &DepsMut, config: &Config, env: &Env) -> Result<(), ContractError> {
+        let latest_unbonding = LATEST_UNBONDING.load(deps.storage)?;
+
+        if latest_unbonding.add(config.min_unbonding_cooldown)?.is_expired(&env.block) {
+            return Err(ContractError::UnbondingCooldownNotExpired {
+                latest_unbonding,
+                min_cooldown: config.min_unbonding_cooldown
+            });
+        }
+        Ok(())
+    }
 
     pub fn delegate_msgs_for_validators(
         deps: Deps,

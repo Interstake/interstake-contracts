@@ -5,6 +5,7 @@ use crate::multitest::suite::validator_list;
 use crate::state::ClaimDetails;
 use crate::{error::ContractError, multitest::suite::FOUR_DAYS};
 use cosmwasm_std::{coin, coins, Addr, Uint128};
+use cw_utils::{Expiration, Duration};
 use test_case::test_case;
 
 #[test_case(1; "single_validator")]
@@ -52,13 +53,13 @@ fn create_basic_claim(i: u32) {
     );
 
     suite.undelegate(user, coin(100, "ujuno")).unwrap();
-    suite.reconcile(user).unwrap();
+    suite.batch_unbond(user).unwrap();
     let current_time = suite.app.block_info().time;
     assert_eq!(
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(100, "ujuno"),
-            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
+            release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
         }]
     );
 
@@ -71,11 +72,11 @@ fn create_basic_claim(i: u32) {
         }
     );
 
-    let err = suite.reconcile(user).unwrap_err();
-    assert_eq!(ContractError::UnbondingTooSoon {}, err.downcast().unwrap());
+    let err = suite.batch_unbond(user).unwrap_err();
+    assert_eq!(ContractError::UnbondingCooldownNotExpired { min_cooldown: Duration::Time(TWENTY_EIGHT_DAYS.saturating_div(7u64)), latest_unbonding: Expiration::AtTime(suite.app.block_info().time) }, err.downcast().unwrap());
 
     suite.advance_time(FOUR_DAYS);
-    suite.reconcile(user).unwrap();
+    suite.batch_unbond(user).unwrap();
 }
 
 #[test_case(1; "single_validator")]
@@ -104,13 +105,13 @@ fn undelegate_part_of_tokens(i: u32) {
     );
 
     suite.undelegate(user, coin(700, "ujuno")).unwrap();
-    suite.reconcile(user).unwrap();
+    suite.batch_unbond(user).unwrap();
     let current_time = suite.app.block_info().time;
     assert_eq!(
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(700, "ujuno"),
-            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
+            release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
         }]
     );
 
@@ -155,13 +156,13 @@ fn cant_undelegate_partially_delegated_tokens() {
     );
 
     suite.undelegate(user, coin(500, "ujuno")).unwrap();
-    suite.reconcile(user).unwrap();
+    suite.batch_unbond(user).unwrap();
     let current_time = suite.app.block_info().time;
     assert_eq!(
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(500, "ujuno"),
-            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
+            release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
         }]
     );
     assert_eq!(
@@ -183,14 +184,14 @@ fn unexpired_claims_arent_removed() {
 
     suite.delegate(user, coin(500, "ujuno")).unwrap();
     suite.undelegate(user, coin(500, "ujuno")).unwrap();
-    suite.reconcile(user).unwrap();
+    suite.batch_unbond(user).unwrap();
 
     let current_time = suite.app.block_info().time;
     assert_eq!(
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(500, "ujuno"),
-            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
+            release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
         }]
     );
 
@@ -199,7 +200,7 @@ fn unexpired_claims_arent_removed() {
     suite.delegate(user, coin(700, "ujuno")).unwrap();
     suite.restake("owner").unwrap();
     suite.undelegate(user, coin(700, "ujuno")).unwrap();
-    suite.reconcile(user).unwrap();
+    suite.batch_unbond(user).unwrap();
 
     // nothing happens
     let current_time = suite.app.block_info().time;
@@ -210,11 +211,11 @@ fn unexpired_claims_arent_removed() {
         vec![
             ClaimDetails {
                 amount: coin(500, "ujuno"),
-                release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS / 2))
+                release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS / 2))
             },
             ClaimDetails {
                 amount: coin(700, "ujuno"),
-                release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
+                release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
             }
         ]
     );
@@ -226,10 +227,7 @@ fn unexpired_claims_arent_removed() {
     suite.claim(user).unwrap();
     assert_eq!(
         suite.query_claims(user).unwrap(),
-        vec![ClaimDetails {
-            amount: coin(700, "ujuno"),
-            release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS / 2))
-        }]
+        vec![ClaimDetails {amount:coin(700,"ujuno"), release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS))}]
     );
 }
 
@@ -265,14 +263,11 @@ fn undelegate_multiple_users_reconcile(i: u32, n_users: u32) {
     // if n_users is more then 7, this should still allow people to claim anad not trigger maxEntries error
     for user in users.iter() {
         assert_eq!(
-            suite.query_claims(user).unwrap(),
-            vec![ClaimDetails {
-                amount: coin(100, "ujuno"),
-                release_timestamp: None
-            }]
+            suite.query_pending_claims(user).unwrap(),
+            Uint128::new(100),
         );
     }
-    suite.reconcile("owner").unwrap();
+    suite.batch_unbond("owner").unwrap();
 
     let current_time = suite.app.block_info().time;
     for user in users.iter() {
@@ -280,7 +275,7 @@ fn undelegate_multiple_users_reconcile(i: u32, n_users: u32) {
             suite.query_claims(user).unwrap(),
             vec![ClaimDetails {
                 amount: coin(100, "ujuno"),
-                release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
+                release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
             }]
         );
     }
@@ -339,7 +334,7 @@ fn undelegate_all(i: u32, n_users: u32) {
             suite.query_claims(user.as_str()).unwrap(),
             vec![ClaimDetails {
                 amount: coin(700, "ujuno"),
-                release_timestamp: Some(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
+                release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
             }]
         );
     }

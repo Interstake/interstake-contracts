@@ -17,6 +17,7 @@ use cw_multi_test::{
     App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, StakingSudo, SudoMsg,
 };
 
+use crate::msg::PendingClaimResponse;
 use crate::msg::{
     AllowedAddrResponse, ClaimsResponse, ConfigResponse, DelegateResponse, DelegatedResponse,
     ExecuteMsg, InstantiateMsg, LastPaymentBlockResponse, QueryMsg, RewardResponse,
@@ -175,6 +176,7 @@ impl SuiteBuilder {
                     transfer_commission: self.restake_commission,
                     denom: self.denom.clone(),
                     unbonding_period: Some(TWENTY_EIGHT_DAYS),
+                    max_entries: Some(7),
                 },
                 &[],
                 "yield_generator",
@@ -418,11 +420,11 @@ impl Suite {
         )
     }
 
-    pub fn reconcile(&mut self, sender: &str) -> AnyResult<AppResponse> {
+    pub fn batch_unbond(&mut self, sender: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.contract.clone(),
-            &ExecuteMsg::Reconcile {},
+            &ExecuteMsg::BatchUnbond {},
             &[],
         )
     }
@@ -475,6 +477,16 @@ impl Suite {
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::LastPaymentBlock {})?;
         Ok(response.last_payment_block)
+    }
+
+    pub fn query_pending_claims(&self, sender: impl Into<String>) -> AnyResult<Uint128> {
+        let response: PendingClaimResponse = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::PendingClaim {
+                sender: sender.into(),
+            },
+        )?;
+        Ok(response.amount)
     }
 
     pub fn query_claims(&self, sender: impl Into<String>) -> AnyResult<Vec<ClaimDetails>> {
