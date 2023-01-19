@@ -50,7 +50,7 @@ fn recently_failed_migration() {
                 transfer_commission,
                 denom: "ujuno".to_string(),
                 unbonding_period: None,
-                max_entries: Some(7)
+                max_entries: Some(7),
             },
         )
         .unwrap();

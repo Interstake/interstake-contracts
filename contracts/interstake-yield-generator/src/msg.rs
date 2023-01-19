@@ -83,7 +83,7 @@ pub enum QueryMsg {
     Reward {},
     /// Returns the amount of tokens that are currently pending for claim
     #[returns(PendingClaimResponse)]
-    PendingClaim {sender: String},
+    PendingClaim { sender: String },
     /// Returns all current unbonding claims for sender
     #[returns(ClaimsResponse)]
     Claims { sender: String },

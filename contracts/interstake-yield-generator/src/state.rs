@@ -1,11 +1,9 @@
-use cw_utils::{Expiration, Duration};
+use cw_utils::{Duration, Expiration};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Decimal, StdResult, Storage, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
-
-use crate::ContractError;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

@@ -1,6 +1,6 @@
 use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
-use cosmwasm_std::{coin, Addr, Decimal, StakingMsg, Timestamp, Uint128};
+use cosmwasm_std::{coin, Addr, Decimal, StakingMsg, Uint128};
 use cw_utils::Duration;
 
 use crate::contract::utils::compute_redelegate_msgs;
