@@ -227,7 +227,7 @@ fn unexpired_claims_arent_removed() {
     suite.claim(user).unwrap();
     assert_eq!(
         suite.query_claims(user).unwrap(),
-        vec![ClaimDetails {amount:coin(700,"ujuno"), release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS))}]
+        vec![ClaimDetails {amount:coin(700,"ujuno"), release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS/2))}]
     );
 }
 

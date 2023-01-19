@@ -60,7 +60,7 @@ pub fn instantiate(
     CONFIG.save(deps.storage, &config)?;
 
     // sets the latest unbonding period to 4 days before now so new unbonding can start immediately if triggered
-    LATEST_UNBONDING.save(deps.storage, &Expiration::AtTime(env.block.time))?;
+    LATEST_UNBONDING.save(deps.storage, &Expiration::AtTime(env.block.time.minus_seconds(MIN_EXPIRATION)))?;
 
     let response = Response::new()
         .add_attribute("action", "instantiate")
@@ -287,7 +287,7 @@ mod execute {
         // IMPORTANT: This will only queue the undelegation. 
         // Create (or update) a pending claim to later be able to get tokens back.
         PENDING_CLAIMS.update(deps.storage, &info.sender, |claim| -> StdResult<_> {
-            let claim = claim.unwrap_or_default();
+            let claim = claim.unwrap_or(Uint128::zero());
             Ok(claim + amount.amount)
         })?;
 
@@ -313,6 +313,10 @@ mod execute {
             .range(deps.storage, None, None, Order::Ascending)
             .collect::<StdResult<Vec<(Addr, Uint128)>>>()?;
 
+        if pending_claims.is_empty() {
+
+        }
+
         let mut unbond_amount = Uint128::zero();
         pending_claims.iter().for_each(|(addr, amount)| {
             unbond_amount += amount;
@@ -321,6 +325,8 @@ mod execute {
                 amount: coin(amount.u128(), &config.denom),
             };
 
+            PENDING_CLAIMS.remove(deps.storage, addr);
+
             UNBONDING_CLAIMS.update(deps.storage, addr, |vec_claims| -> StdResult<_> {
                 let mut vec_claims = vec_claims.unwrap_or_default();
                 vec_claims.push(claim_details);
@@ -328,6 +334,8 @@ mod execute {
             }).unwrap();
         });
 
+        // hypothesis: The initial pending claim is not being removed, so once we call the second batch_unbond, It reaches this point, which it shouldnt. It should error or exit before here.
+        // issue is here: See backtrace :9
         TOTAL.update(deps.storage, |total| -> StdResult<_> {
             dbg!(Ok(coin((total.amount - unbond_amount).u128(), total.denom)))
         })?;
@@ -364,7 +372,7 @@ mod execute {
                     }
                 });
 
-            Ok(expired_claims.clone())
+            Ok(unexpired_claims.clone())
         })?;
 
         let mut response = Response::new()
@@ -948,7 +956,7 @@ pub mod utils {
     pub fn check_unbonding_cooldown(deps: &DepsMut, config: &Config, env: &Env) -> Result<(), ContractError> {
         let latest_unbonding = LATEST_UNBONDING.load(deps.storage)?;
 
-        if latest_unbonding.add(config.min_unbonding_cooldown)?.is_expired(&env.block) {
+        if !latest_unbonding.add(config.min_unbonding_cooldown)?.is_expired(&env.block) {
             return Err(ContractError::UnbondingCooldownNotExpired {
                 latest_unbonding,
                 min_cooldown: config.min_unbonding_cooldown
@@ -1119,5 +1127,46 @@ pub mod utils {
             earnings: Uint128::zero(),
             start_height,
         })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use cosmwasm_std::{Decimal, Addr, testing::{mock_dependencies, mock_env, mock_info}};
+        use cw_utils::{Duration, Expiration};
+
+        use crate::{state::{Config, LATEST_UNBONDING}, ContractError};
+
+        use super::check_unbonding_cooldown;
+
+        #[test]
+        fn test_minimum_unbonding_check
+        () {
+           let mut deps = mock_dependencies();
+           let mut env = mock_env();
+
+           let latest_unbonding = Expiration::AtTime(env.block.time);
+           LATEST_UNBONDING.save(&mut deps.storage, &latest_unbonding).unwrap();
+           
+           // ... arrange ...
+           let config = Config {
+               min_unbonding_cooldown: Duration::Time(1),
+               unbonding_period: Duration::Time(7),
+            denom: "token".to_string(),
+            owner: Addr::unchecked("creator"),
+            treasury: Addr::unchecked("treasury"),
+            transfer_commission: Decimal::percent(10),
+            restake_commission: Decimal::percent(10),
+           };
+
+           // unbonding period not expired
+           assert!(check_unbonding_cooldown(&deps.as_mut(), &config, &env).is_err());
+           let err = check_unbonding_cooldown(&deps.as_mut(), &config, &env).unwrap_err();
+           assert_eq!(err as ContractError, ContractError::UnbondingCooldownNotExpired { min_cooldown: Duration::Time(1), latest_unbonding: latest_unbonding });
+
+
+           // unbonding period expired
+           env.block.time = env.block.time.plus_seconds(1);
+           assert!(check_unbonding_cooldown(&deps.as_mut(), &config, &env).is_ok());
+        }
     }
 }
