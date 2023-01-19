@@ -248,9 +248,7 @@ fn unexpired_claims_arent_removed() {
 fn undelegate_multiple_users_reconcile(i: u32, n_users: u32) {
     let validators = validator_list(i);
 
-    let users = (0..n_users)
-        .map(|i| format!("user{i}"))
-        .collect::<Vec<_>>();
+    let users = (0..n_users).map(|i| format!("user{i}")).collect::<Vec<_>>();
 
     let all_funds = users
         .iter()
@@ -297,9 +295,7 @@ fn undelegate_multiple_users_reconcile(i: u32, n_users: u32) {
 fn undelegate_all(i: u32, n_users: u32) {
     let validators = validator_list(i);
 
-    let users = (0..n_users)
-        .map(|i| format!("user{i}"))
-        .collect::<Vec<_>>();
+    let users = (0..n_users).map(|i| format!("user{i}")).collect::<Vec<_>>();
 
     let all_funds = users
         .iter()
