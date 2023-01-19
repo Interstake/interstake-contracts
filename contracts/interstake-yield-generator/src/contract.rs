@@ -385,7 +385,7 @@ mod execute {
                 }
             });
 
-            Ok(unexpired_claims.clone())
+            Ok(unexpired_claims)
         })?;
 
         let mut response = Response::new()
@@ -404,7 +404,7 @@ mod execute {
         if !claim_amount.is_zero() {
             let msg = BankMsg::Send {
                 to_address: info.sender.to_string(),
-                amount: vec![coin(claim_amount.u128(), &config.denom)],
+                amount: vec![coin(claim_amount.u128(), config.denom)],
             };
             response = response.add_message(msg);
         }
