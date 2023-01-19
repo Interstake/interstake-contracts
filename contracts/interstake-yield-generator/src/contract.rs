@@ -1194,7 +1194,7 @@ pub mod utils {
                 err as ContractError,
                 ContractError::UnbondingCooldownNotExpired {
                     min_cooldown: Duration::Time(1),
-                    latest_unbonding: latest_unbonding
+                    latest_unbonding
                 }
             );
 

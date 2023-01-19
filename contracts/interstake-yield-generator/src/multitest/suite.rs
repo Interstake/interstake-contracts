@@ -129,7 +129,7 @@ impl SuiteBuilder {
         let mut validators: Vec<Validator> = vec![];
         for number in 1..=self.number_of_validators {
             let validator = Validator {
-                address: format!("validator{}", number),
+                address: format!("validator{number}"),
                 commission: self.validator_commission,
                 max_commission: Decimal::percent(100),
                 max_change_rate: Decimal::percent(1),

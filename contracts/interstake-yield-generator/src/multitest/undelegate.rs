@@ -249,7 +249,7 @@ fn undelegate_multiple_users_reconcile(i: u32, n_users: u32) {
     let validators = validator_list(i);
 
     let users = (0..n_users)
-        .map(|i| format!("user{}", i))
+        .map(|i| format!("user{i}"))
         .collect::<Vec<_>>();
 
     let all_funds = users
@@ -298,7 +298,7 @@ fn undelegate_all(i: u32, n_users: u32) {
     let validators = validator_list(i);
 
     let users = (0..n_users)
-        .map(|i| format!("user{}", i))
+        .map(|i| format!("user{i}"))
         .collect::<Vec<_>>();
 
     let all_funds = users
@@ -329,7 +329,7 @@ fn undelegate_all(i: u32, n_users: u32) {
     assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
 
     let res = suite.undelegate_all(suite.owner().as_str());
-    assert!(res.is_ok(), "undelegate_all by owner failed: {:?}", res);
+    assert!(res.is_ok(), "undelegate_all by owner failed: {res:?}");
 
     // see if all the delegations are actually gone
     let stake = suite.query_all_delegations().unwrap();
@@ -353,7 +353,7 @@ fn undelegate_all(i: u32, n_users: u32) {
 
     for user in &users {
         if let Err(err) = suite.claim(user.as_str()) {
-            panic!("claim failed: {:?}", err);
+            panic!("claim failed: {err:?}");
         }
     }
 
