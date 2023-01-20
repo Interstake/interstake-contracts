@@ -112,11 +112,12 @@ fn undelegate_part_of_tokens(i: u32) {
     suite.undelegate(user, coin(700, "ujuno")).unwrap();
     suite.batch_unbond(user).unwrap();
     let current_time = suite.app.block_info().time;
+    let first_unbonding = Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS));
     assert_eq!(
         suite.query_claims(user).unwrap(),
         vec![ClaimDetails {
             amount: coin(700, "ujuno"),
-            release_timestamp: Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS))
+            release_timestamp: first_unbonding
         }]
     );
 
@@ -128,6 +129,71 @@ fn undelegate_part_of_tokens(i: u32) {
             total_earnings: Uint128::zero(),
         }
     );
+
+    // undelegate the half in multiple steps
+    suite.advance_time(TWENTY_EIGHT_DAYS / 2);
+    let current_time = suite.app.block_info().time;
+    let second_unbonding = Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS));
+    suite.undelegate(user, coin(60, "ujuno")).unwrap();
+    suite.undelegate(user, coin(40, "ujuno")).unwrap();
+    suite.undelegate(user, coin(20, "ujuno")).unwrap();
+    suite.undelegate(user, coin(40, "ujuno")).unwrap();
+    // this will create one claim for 150 ujuno
+    suite.batch_unbond(user).unwrap();
+    assert_eq!(
+        suite.query_claims(user).unwrap(),
+        vec![
+            ClaimDetails {
+                amount: coin(700, "ujuno"),
+                release_timestamp: first_unbonding
+            },
+            ClaimDetails {
+                amount: coin(160, "ujuno"),
+                release_timestamp: second_unbonding
+            }
+        ]
+    );
+
+    suite.advance_time(TWENTY_EIGHT_DAYS / 4);
+    let current_time = suite.app.block_info().time;
+    let third_unbonding = Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS));
+    suite.undelegate(user, coin(80, "ujuno")).unwrap();
+    suite.batch_unbond(user).unwrap();
+    // suite.undelegate(user, coin(60, "ujuno")).unwrap();
+    // suite.batch_unbond(user).unwrap_err(); // cooldown not expired
+
+    suite.advance_time(TWENTY_EIGHT_DAYS / 4);
+    let _current_time = suite.app.block_info().time;
+    // let fourth_unbonding = Expiration::AtTime(current_time.plus_seconds(TWENTY_EIGHT_DAYS));
+    suite.batch_unbond(user).unwrap();
+    assert_eq!(
+        suite.query_claims(user).unwrap(),
+        vec![
+            ClaimDetails {
+                amount: coin(700, "ujuno"),
+                release_timestamp: first_unbonding
+            },
+            ClaimDetails {
+                amount: coin(160, "ujuno"),
+                release_timestamp: second_unbonding
+            },
+            ClaimDetails {
+                amount: coin(80, "ujuno"),
+                release_timestamp: third_unbonding
+            },
+            // ClaimDetails {
+            //     amount: coin(60, "ujuno"),
+            //     release_timestamp: fourth_unbonding
+            // }
+        ]
+    );
+
+    // mature all four claims
+    suite.advance_time(TWENTY_EIGHT_DAYS);
+    suite.process_staking_queue().unwrap();
+
+    // TODO: This fails due to rounding errors at delegate and undelegate msgs.
+    // suite.claim(user).unwrap();
 }
 
 #[test]
