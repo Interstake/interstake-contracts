@@ -1,11 +1,11 @@
-use cw_utils::Expiration;
+use cw_utils::{Duration, Expiration};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Decimal, StdResult, Storage, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Config {
     pub owner: Addr,
@@ -13,7 +13,8 @@ pub struct Config {
     pub restake_commission: Decimal,
     pub transfer_commission: Decimal,
     pub denom: String,
-    pub unbonding_period: Timestamp,
+    pub unbonding_period: Duration,
+    pub min_unbonding_cooldown: Duration,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
@@ -47,11 +48,10 @@ impl StakeDetails {
         Ok(())
     }
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct ClaimDetails {
-    pub release_timestamp: Timestamp,
+    pub release_timestamp: Expiration,
     pub amount: Coin,
 }
 
@@ -60,7 +60,12 @@ pub const CONFIG: Item<Config> = Item::new("config");
 // TODO: Replace with Vec<Coin>
 pub const TOTAL: Item<Coin> = Item::new("total");
 pub const LAST_PAYMENT_BLOCK: Item<u64> = Item::new("last_payment_block");
+
 pub const STAKE_DETAILS: Map<&Addr, StakeDetails> = Map::new("stake_details");
+
+pub const LATEST_UNBONDING: Item<Expiration> = Item::new("latest_unbonding");
+pub const PENDING_CLAIMS: Map<&Addr, Uint128> = Map::new("pending_claims");
 pub const UNBONDING_CLAIMS: Map<&Addr, Vec<ClaimDetails>> = Map::new("unbonding_claims");
+
 pub const VALIDATOR_LIST: Map<String, Decimal> = Map::new("validator_list");
 pub const ALLOWED_ADDRESSES: Map<&Addr, Expiration> = Map::new("allowed_addresses");

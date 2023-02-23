@@ -20,6 +20,8 @@ pub struct InstantiateMsg {
     pub denom: String,
     /// Unbondig period in seconds. Default: 2_419_200 (28 days)
     pub unbonding_period: Option<u64>,
+    /// maxEntries in unbonding queue. Default: 7
+    pub max_entries: Option<u64>,
 }
 
 #[cw_serde]
@@ -50,6 +52,8 @@ pub enum ExecuteMsg {
         amount: Uint128,
         commission_address: Option<String>,
     },
+    /// Start unbonding current batch
+    BatchUnbond {},
     /// Undelegates all tokens
     UndelegateAll {},
     /// adds (or updates) address to allowed list
@@ -77,6 +81,9 @@ pub enum QueryMsg {
     /// Current available reward to claim
     #[returns(RewardResponse)]
     Reward {},
+    /// Returns the amount of tokens that are currently pending for claim
+    #[returns(PendingClaimResponse)]
+    PendingClaim { sender: String },
     /// Returns all current unbonding claims for sender
     #[returns(ClaimsResponse)]
     Claims { sender: String },
@@ -111,6 +118,8 @@ pub struct MigrateMsg {
     pub denom: String,
     /// Unbondig period in seconds. Default: 2_419_200 (28 days)
     pub unbonding_period: Option<u64>,
+    /// maxEntries in unbonding queue. Default: 7
+    pub max_entries: Option<u64>,
 }
 
 #[cw_serde]
@@ -121,6 +130,11 @@ pub struct ConfigResponse {
 #[cw_serde]
 pub struct RewardResponse {
     pub rewards: Vec<Coin>,
+}
+
+#[cw_serde]
+pub struct PendingClaimResponse {
+    pub amount: Uint128,
 }
 
 #[cw_serde]

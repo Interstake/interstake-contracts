@@ -1,6 +1,7 @@
 use super::suite::{SuiteBuilder, TWENTY_EIGHT_DAYS};
 
-use cosmwasm_std::{coin, Addr, Decimal, StakingMsg, Timestamp, Uint128};
+use cosmwasm_std::{coin, Addr, Decimal, StakingMsg, Uint128};
+use cw_utils::Duration;
 
 use crate::contract::utils::compute_redelegate_msgs;
 use crate::error::ContractError;
@@ -31,7 +32,8 @@ fn proper_update() {
             restake_commission: Decimal::zero(),
             transfer_commission: Decimal::zero(),
             denom: "ujuno".to_owned(),
-            unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
+            unbonding_period: Duration::Time(TWENTY_EIGHT_DAYS),
+            min_unbonding_cooldown: Duration::Time(TWENTY_EIGHT_DAYS / 7),
         }
     );
 
@@ -46,7 +48,9 @@ fn proper_update() {
             restake_commission: Decimal::zero(),
             transfer_commission: Decimal::zero(),
             denom: "ujuno".to_owned(),
-            unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
+            unbonding_period: Duration::Time(TWENTY_EIGHT_DAYS),
+
+            min_unbonding_cooldown: Duration::Time(TWENTY_EIGHT_DAYS / 7),
         }
     );
 
@@ -62,7 +66,8 @@ fn proper_update() {
             restake_commission: new_team_commission,
             transfer_commission: Decimal::zero(),
             denom: "ujuno".to_owned(),
-            unbonding_period: Timestamp::from_seconds(TWENTY_EIGHT_DAYS),
+            unbonding_period: Duration::Time(TWENTY_EIGHT_DAYS),
+            min_unbonding_cooldown: Duration::Time(TWENTY_EIGHT_DAYS / 7),
         }
     );
 
@@ -78,7 +83,8 @@ fn proper_update() {
             restake_commission: new_team_commission,
             transfer_commission: Decimal::zero(),
             denom: "ujuno".to_owned(),
-            unbonding_period: Timestamp::from_seconds(new_unbonding_period),
+            unbonding_period: Duration::Time(new_unbonding_period),
+            min_unbonding_cooldown: Duration::Time(TWENTY_EIGHT_DAYS / 7),
         }
     );
 
@@ -94,7 +100,8 @@ fn proper_update() {
             restake_commission: new_team_commission,
             transfer_commission: Decimal::zero(),
             denom: "ujuno".to_owned(),
-            unbonding_period: Timestamp::from_seconds(new_unbonding_period),
+            unbonding_period: Duration::Time(new_unbonding_period),
+            min_unbonding_cooldown: Duration::Time(TWENTY_EIGHT_DAYS / 7),
         }
     );
 
@@ -117,7 +124,8 @@ fn proper_update() {
             restake_commission: new_team_commission,
             transfer_commission: new_transfer_commission,
             denom: "ujuno".to_owned(),
-            unbonding_period: Timestamp::from_seconds(new_unbonding_period),
+            unbonding_period: Duration::Time(new_unbonding_period),
+            min_unbonding_cooldown: Duration::Time(TWENTY_EIGHT_DAYS / 7),
         }
     );
 
@@ -133,7 +141,8 @@ fn proper_update() {
             restake_commission: new_team_commission,
             transfer_commission: new_transfer_commission,
             denom: "ujuno".to_owned(),
-            unbonding_period: Timestamp::from_seconds(new_unbonding_period),
+            unbonding_period: Duration::Time(new_unbonding_period),
+            min_unbonding_cooldown: Duration::Time(TWENTY_EIGHT_DAYS / 7),
         }
     );
 

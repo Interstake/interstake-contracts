@@ -1,3 +1,4 @@
+use cw_utils::Expiration;
 use thiserror::Error;
 
 use cosmwasm_std::{StdError, Uint128};
@@ -47,6 +48,12 @@ pub enum ContractError {
 
     #[error("Commission address may not be the same as the recipient")]
     CommissionAddressSameAsRecipient {},
+
+    #[error("Minimum cooldown {min_cooldown:?} has not passed since the the latest unbonding {latest_unbonding:?}")]
+    UnbondingCooldownNotExpired {
+        min_cooldown: cw_utils::Duration,
+        latest_unbonding: Expiration,
+    },
 
     #[error("Semver parsing error: {0}")]
     SemVer(String),
