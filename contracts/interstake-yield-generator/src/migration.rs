@@ -11,9 +11,7 @@ use crate::state::{
     ClaimDetails, Config, CONFIG, LATEST_UNBONDING, UNBONDING_CLAIMS, VALIDATOR_LIST,
 };
 
-use interstake_yield_generator_v04::state::{
-    ClaimDetails as ClaimDetailsV0_4, UNBONDING_CLAIMS as UNBONDING_CLAIMS_V0_4,
-};
+use interstake_yield_generator_v04::state::UNBONDING_CLAIMS as UNBONDING_CLAIMS_V0_4;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -69,7 +67,7 @@ pub fn migrate_config(
     // save new claims
     for (k, v) in new_claims {
         UNBONDING_CLAIMS.update(deps.storage, &k, |old| -> StdResult<_> {
-            let mut new_claims = old.unwrap_or(vec![]);
+            let mut new_claims = old.unwrap_or_default(); // default is empty vec
             new_claims.push(v);
             Ok(new_claims)
         })?;

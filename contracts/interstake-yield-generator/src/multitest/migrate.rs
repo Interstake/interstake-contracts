@@ -7,7 +7,6 @@ use cosmwasm_std::Decimal;
 use cosmwasm_std::Uint128;
 use cw_multi_test::Executor;
 use interstake_yield_generator_v04::msg as msg_v04;
-use interstake_yield_generator_v04::state as state_v04;
 
 use crate::msg::MigrateMsg;
 use crate::multitest::suite::TWENTY_EIGHT_DAYS;
