@@ -3,11 +3,17 @@ use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Decimal, DepsMut, Env};
+use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdResult};
 
 use crate::error::ContractError;
 use crate::msg::MigrateMsg;
-use crate::state::{Config, CONFIG, LATEST_UNBONDING, VALIDATOR_LIST};
+use crate::state::{
+    ClaimDetails, Config, CONFIG, LATEST_UNBONDING, UNBONDING_CLAIMS, VALIDATOR_LIST,
+};
+
+use interstake_yield_generator_v04::state::{
+    ClaimDetails as ClaimDetailsV0_4, UNBONDING_CLAIMS as UNBONDING_CLAIMS_V0_4,
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -41,6 +47,34 @@ pub fn migrate_config(
         min_unbonding_cooldown,
     };
 
+    // migrate unbonding claimsv0.4 to v0.5
+    let mut new_claims: Vec<(Addr, ClaimDetails)> = vec![];
+
+    UNBONDING_CLAIMS_V0_4
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .for_each(|item| {
+            let (k, v) = item.unwrap();
+
+            v.into_iter().for_each(|claim| {
+                let new_claim = ClaimDetails {
+                    amount: claim.amount,
+                    release_timestamp: Expiration::AtTime(claim.release_timestamp),
+                };
+                new_claims.push((k.clone(), new_claim));
+            });
+        });
+
+    UNBONDING_CLAIMS_V0_4.clear(deps.storage);
+
+    // save new claims
+    for (k, v) in new_claims {
+        UNBONDING_CLAIMS.update(deps.storage, &k, |old| -> StdResult<_> {
+            let mut new_claims = old.unwrap_or(vec![]);
+            new_claims.push(v);
+            Ok(new_claims)
+        })?;
+    }
+
     // sets the latest unbonding period to 4 days from now
     LATEST_UNBONDING.save(
         deps.storage,
@@ -48,6 +82,7 @@ pub fn migrate_config(
     )?;
 
     VALIDATOR_LIST.save(deps.storage, msg.staking_addr, &Decimal::one())?;
+
     CONFIG.save(deps.storage, &new_config)?;
     Ok(())
 }
